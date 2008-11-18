@@ -65,7 +65,7 @@ public:
     // event handlers (these functions should _not_ be virtual)
     void OnQuit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
-	void OnGettingStarted(wxCommandEvent& event);
+    void OnGettingStarted(wxCommandEvent& event);
     void OnPaint(wxPaintEvent& event);
     void OnStep(wxCommandEvent& event);
     void OnStart(wxCommandEvent& event);
@@ -79,7 +79,7 @@ private:
     // any class wishing to process wxWidgets events must use this macro
     DECLARE_EVENT_TABLE()
 
-	void ResetGrid(int x_size,int y_size);
+    void ResetGrid(int x_size,int y_size);
     void Update();
     void RedrawImages();
     void ComputeFlow();
@@ -112,13 +112,13 @@ private:
     int flow_sample_separation; // only need to compute the flow every so often (X and Y should divide by this)
 
     double line_length;
-	bool put_obstacle;
+    bool put_obstacle;
     bool show_flow,show_flow_colours;
     int averaging_radius;
     bool force_flow;
     bool subtract_mean_velocity;
 
-	bool save_images;
+    bool save_images;
     int n_saved_images; // we output with frame number for convenience with other packages
 
 };
@@ -140,14 +140,14 @@ enum
     // (where it is special and put into the "Apple" menu)
     Minimal_About = wxID_ABOUT,
 
-	ID_GETTING_STARTED,
+    ID_GETTING_STARTED,
     ID_STEP,
     ID_RUN,
     ID_STOP,
     ID_CHANGE_LINE_LENGTH,
     ID_SHOW_FLOW_COLOURS,
     ID_CHANGE_AVERAGING_RADIUS,
-	ID_SUBTRACT_MEAN_VELOCITY,
+    ID_SUBTRACT_MEAN_VELOCITY,
 };
 
 // ----------------------------------------------------------------------------
@@ -160,14 +160,14 @@ enum
 BEGIN_EVENT_TABLE(MyFrame, wxFrame)
     EVT_MENU(Minimal_Quit,  MyFrame::OnQuit)
     EVT_MENU(Minimal_About, MyFrame::OnAbout)
-	EVT_MENU(ID_GETTING_STARTED,MyFrame::OnGettingStarted)
+    EVT_MENU(ID_GETTING_STARTED,MyFrame::OnGettingStarted)
     EVT_MENU(ID_STEP,MyFrame::OnStep)
     EVT_MENU(ID_RUN,MyFrame::OnStart)
     EVT_MENU(ID_STOP,MyFrame::OnStop)
     EVT_MENU(ID_CHANGE_LINE_LENGTH,MyFrame::OnChangeLineLength)
     EVT_MENU(ID_SHOW_FLOW_COLOURS,MyFrame::OnShowFlowColours)
     EVT_MENU(ID_CHANGE_AVERAGING_RADIUS,MyFrame::OnChangeAveragingRadius)
-	EVT_MENU(ID_SUBTRACT_MEAN_VELOCITY,MyFrame::OnSubtractMeanVelocity)
+    EVT_MENU(ID_SUBTRACT_MEAN_VELOCITY,MyFrame::OnSubtractMeanVelocity)
     EVT_PAINT(MyFrame::OnPaint)
 END_EVENT_TABLE()
 
@@ -246,7 +246,7 @@ MyFrame::MyFrame(const wxString& title)
         optionsMenu->Append(ID_CHANGE_LINE_LENGTH,_T("Change line length"),_T(""));
         optionsMenu->Append(ID_SHOW_FLOW_COLOURS,_T("Show flow colours"),_T(""));
         optionsMenu->Append(ID_CHANGE_AVERAGING_RADIUS,_T("Change averaging radius"),_T(""));
-		optionsMenu->Append(ID_SUBTRACT_MEAN_VELOCITY,_T("Subtract mean velocity"));
+        optionsMenu->Append(ID_SUBTRACT_MEAN_VELOCITY,_T("Subtract mean velocity"));
         menuBar->Append(optionsMenu, _T("&Options"));
     }
 
@@ -336,33 +336,33 @@ MyFrame::MyFrame(const wxString& title)
         }
     }
 
-	srand((unsigned int)time(NULL));
+    srand((unsigned int)time(NULL));
     wxInitAllImageHandlers();
-	ResetGrid(2000,1000);
+    ResetGrid(2000,1000);
 }
 
 void MyFrame::ResetGrid(int x_size,int y_size)
 {
-	this->X = x_size;
-	this->Y = y_size;
-	this->grid[0].assign(X,vector<state>(Y));
-	this->grid[1].assign(X,vector<state>(Y));
+    this->X = x_size;
+    this->Y = y_size;
+    this->grid[0].assign(X,vector<state>(Y));
+    this->grid[1].assign(X,vector<state>(Y));
 
-	this->need_redraw_images = true;
-	this->need_recompute_flow = true;
-	this->subtract_mean_velocity = false;
-	this->line_length = 400;
-	this->show_flow_colours = true;
-	this->averaging_radius = 64;
-	this->iterations = 0;
-	this->is_running = false;
-	this->flow_sample_separation = 20;
-	this->have_taken_first_velocity_average = false;
-	this->n_saved_images = 1;
-	this->show_flow = true;
-	this->force_flow = true;
-	this->put_obstacle = true;
-	this->save_images = false;
+    this->need_redraw_images = true;
+    this->need_recompute_flow = true;
+    this->subtract_mean_velocity = false;
+    this->line_length = 400;
+    this->show_flow_colours = true;
+    this->averaging_radius = 64;
+    this->iterations = 0;
+    this->is_running = false;
+    this->flow_sample_separation = 20;
+    this->have_taken_first_velocity_average = false;
+    this->n_saved_images = 1;
+    this->show_flow = true;
+    this->force_flow = true;
+    this->put_obstacle = true;
+    this->save_images = false;
 
     this->current_buffer=0;
     this->old_buffer=1;
@@ -370,31 +370,31 @@ void MyFrame::ResetGrid(int x_size,int y_size)
     {
         for(int y=0;y<Y;y++)
         {
-            if(put_obstacle && sqrt(pow(x-X/8,2.0)+pow(y-Y/2,2.0))<60)
+            if(put_obstacle && sqrt(pow(x-X/8,2.0)+pow(y-Y/2,2.0))<100)
                 this->grid[current_buffer][x][y] = 5; // obstacle
             else if(force_flow)
                 this->grid[current_buffer][x][y] = ((rand()%100)<flow_bias[x%2])?samples[rand()%N_SAMPLES]:0; // flow
-			else
-				this->grid[current_buffer][x][y] = (rand()%100==0)?samples[rand()%N_SAMPLES]:0; // sparse atoms
+            else
+                this->grid[current_buffer][x][y] = (rand()%100==0)?samples[rand()%N_SAMPLES]:0; // sparse atoms
         }
     }
 
-	// initialize the velocity arrays
+    // initialize the velocity arrays
     this->velocity.assign(X/this->flow_sample_separation,
         vector<wxRealPoint>(Y/this->flow_sample_separation,wxRealPoint(0,0)));
     this->averaged_velocity.assign(X/this->flow_sample_separation,
         vector<wxRealPoint>(Y/this->flow_sample_separation,wxRealPoint(0,0)));
 
-	this->zoom_factor=10;
-	// scale down the visible grid until we it is sensible to show
-	{
-		int ms = max(X,Y);
-		while(ms*this->zoom_factor>1000.0)
-		{
-			if(this->zoom_factor>1.0) this->zoom_factor -= 1.0;
-			else this->zoom_factor /= 2.0;
-		}
-	}
+    this->zoom_factor=10;
+    // scale down the visible grid until we it is sensible to show
+    {
+        int ms = max(X,Y);
+        while(ms*this->zoom_factor>1000.0)
+        {
+            if(this->zoom_factor>1.0) this->zoom_factor -= 1.0;
+            else this->zoom_factor /= 2.0;
+        }
+    }
     this->drawing_image.Create(this->X * this->zoom_factor, this->Y * this->zoom_factor);
     this->density_image.Create(this->X * this->zoom_factor, this->Y * this->zoom_factor);
 
@@ -487,39 +487,39 @@ void MyFrame::RedrawImages()
     }
     this->drawing_buffer.DrawBitmap(wxBitmap(density_image),0,0);
 
-	if(show_flow)
-	{
-		// draw the flow image
-		if(need_recompute_flow)
-			ComputeFlow();
+    if(show_flow)
+    {
+        // draw the flow image
+        if(need_recompute_flow)
+            ComputeFlow();
 
-		// draw flow vectors
-		double angle;
-		//dc.SetBrush(*wxWHITE_BRUSH);
-		//dc.DrawRectangle(0,0,X,Y);
-		if(!this->show_flow_colours)
-			this->drawing_buffer.SetPen(*wxBLACK_PEN);
-		for(int x=this->flow_sample_separation;x<X-this->flow_sample_separation;x+=this->flow_sample_separation)
-		{
-			for(int y=this->flow_sample_separation;y<Y-this->flow_sample_separation;y+=this->flow_sample_separation)
-			{
-				int sx=x/this->flow_sample_separation,sy=y/this->flow_sample_separation;
-				wxRealPoint v = velocity[sx][sy];
-				if(this->subtract_mean_velocity)
-				{
-					// we subtract the averaged velocity at this point, to better highlight the dynamic changes
-					v.x -= averaged_velocity[sx][sy].x;
-					v.y -= averaged_velocity[sx][sy].y;
-				}
-				angle = 0.5+atan2(v.y,v.x)/(2*3.14159265358979);
-				wxImage::RGBValue rgb = wxImage::HSVtoRGB(wxImage::HSVValue(angle,1.0,1.0));
-				if(this->show_flow_colours)
-					this->drawing_buffer.SetPen(wxPen(wxColour(rgb.red,rgb.green,rgb.blue)));
-				this->drawing_buffer.DrawLine(x * this->zoom_factor,y * this->zoom_factor,
-					(x+v.x*this->line_length)*this->zoom_factor,(y+v.y*this->line_length)*this->zoom_factor);
-			}
-		}
-	}
+        // draw flow vectors
+        double angle;
+        //dc.SetBrush(*wxWHITE_BRUSH);
+        //dc.DrawRectangle(0,0,X,Y);
+        if(!this->show_flow_colours)
+            this->drawing_buffer.SetPen(*wxBLACK_PEN);
+        for(int x=this->flow_sample_separation;x<X-this->flow_sample_separation;x+=this->flow_sample_separation)
+        {
+            for(int y=this->flow_sample_separation;y<Y-this->flow_sample_separation;y+=this->flow_sample_separation)
+            {
+                int sx=x/this->flow_sample_separation,sy=y/this->flow_sample_separation;
+                wxRealPoint v = velocity[sx][sy];
+                if(this->subtract_mean_velocity)
+                {
+                    // we subtract the averaged velocity at this point, to better highlight the dynamic changes
+                    v.x -= averaged_velocity[sx][sy].x;
+                    v.y -= averaged_velocity[sx][sy].y;
+                }
+                angle = 0.5+atan2(v.y,v.x)/(2*3.14159265358979);
+                wxImage::RGBValue rgb = wxImage::HSVtoRGB(wxImage::HSVValue(angle,1.0,1.0));
+                if(this->show_flow_colours)
+                    this->drawing_buffer.SetPen(wxPen(wxColour(rgb.red,rgb.green,rgb.blue)));
+                this->drawing_buffer.DrawLine(x * this->zoom_factor,y * this->zoom_factor,
+                    (x+v.x*this->line_length)*this->zoom_factor,(y+v.y*this->line_length)*this->zoom_factor);
+            }
+        }
+    }
 
     this->need_redraw_images = false;
 }
@@ -536,13 +536,13 @@ void MyFrame::OnPaint(wxPaintEvent& /*event*/)
 
     if(this->is_running)
     {
-		if(this->save_images)
-		{
-			wxLogStatus(_T("Saving image snapshot..."));
-			ostringstream oss;
-			oss << setw(4) << setfill('0') << this->n_saved_images++ << ".jpg";
-			this->drawing_image.SaveFile(wxString(oss.str().c_str(),wxConvUTF8),wxBITMAP_TYPE_JPEG);
-		}
+        if(this->save_images)
+        {
+            wxLogStatus(_T("Saving image snapshot..."));
+            ostringstream oss;
+            oss << setw(4) << setfill('0') << this->n_saved_images++ << ".jpg";
+            this->drawing_image.SaveFile(wxString(oss.str().c_str(),wxConvUTF8),wxBITMAP_TYPE_JPEG);
+        }
         static bool warm_up = false;
         if(warm_up)
         {
@@ -750,7 +750,7 @@ void MyFrame::OnChangeAveragingRadius(wxCommandEvent& /*event*/)
 
 void MyFrame::OnGettingStarted(wxCommandEvent& /*event*/)
 {
-	wxMessageBox(_T("Set the simulation running (Actions menu : Run). The fluid flows around the obstacle.\n\n\
+    wxMessageBox(_T("Set the simulation running (Actions menu : Run). The fluid flows around the obstacle.\n\n\
 After a few thousand timesteps the flow has become unstable, with alternating vortices being shed. \
 Turn on 'subtract mean velocity' and increase the line length to 4000 to better see them.\n\n\
 This is an implementation of the pair-interaction lattice gas cellular automata. Search the web for \
