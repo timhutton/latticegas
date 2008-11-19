@@ -30,15 +30,11 @@
 #endif
 
 // STL:
-#include <algorithm>
 #include <vector>
-#include <sstream>
-#include <iomanip>
 using namespace std;
 
 // OpenMP:
-//#include <omp.h> // comment this out if you don't have OpenMP (you might also need to set USE_OMP=OFF in cmake)
-
+#include <omp.h> // comment this out if you don't have OpenMP (you might also need to set USE_OMP=OFF in cmake)
 
 // Define a new application type, each program should derive a class from wxApp
 class MyApp : public wxApp
@@ -68,23 +64,36 @@ public:
     void OnGettingStarted(wxCommandEvent& event);
     void OnPaint(wxPaintEvent& event);
     void OnStep(wxCommandEvent& event);
-    void OnStart(wxCommandEvent& event);
-    void OnStop(wxCommandEvent& event);
+    void OnUpdateStep(wxUpdateUIEvent& event);
+    void OnRunOrStop(wxCommandEvent& event);
     void OnChangeLineLength(wxCommandEvent& event);
+    void OnShowFlow(wxCommandEvent& event);
+    void OnUpdateShowFlow(wxUpdateUIEvent& event);
     void OnShowFlowColours(wxCommandEvent& event);
+    void OnUpdateShowFlowColours(wxUpdateUIEvent& event);
     void OnChangeAveragingRadius(wxCommandEvent& event);
     void OnSubtractMeanVelocity(wxCommandEvent& event);
+    void OnUpdateSubtractMeanVelocity(wxUpdateUIEvent& event);
+    void OnEddiesDemo(wxCommandEvent& event);
+    void OnParticlesDemo(wxCommandEvent& event);
+    void OnZoomIn(wxCommandEvent& event);
+    void OnZoomOut(wxCommandEvent& event);
+    void OnShowCurrentStats(wxCommandEvent& event);
 
 private:
     // any class wishing to process wxWidgets events must use this macro
     DECLARE_EVENT_TABLE()
 
-    void ResetGrid(int x_size,int y_size);
-    void Update();
+    void UpdateGas();
     void RedrawImages();
     void ComputeFlow();
     void ApplyHorizontalPairwiseInteraction(state &a,state &b);
     void ApplyVerticalPairwiseInteraction(state &a,state &b);
+
+    void ResizeGrid(int x_size,int y_size);
+    void ResetGridForEddiesExample();
+    void ResetGridForParticlesExample();
+    bool RequestZoomFactor(int num,int denom); // expressed as a fraction, will fail if resulting image is too big
 
     int X; // these must be even numbers, and divisible by flow_sample_separation
     int Y;
@@ -96,6 +105,7 @@ private:
     int iterations;
 
     bool is_running;
+    int running_step;
 
     // states: 0=empty, 1=rest particle, 2="x-mover", 3="y-mover", 4="diag-mover", 5=boundary
     state pi_table_horiz[5][5][2],pi_table_vert[5][5][2]; //  maps a,b onto pi_table[a][b][0],pi_table[a][b][1]
@@ -108,11 +118,10 @@ private:
     wxBitmap drawing_image; 
     wxMemoryDC drawing_buffer;
     bool need_redraw_images,need_recompute_flow;
-    float zoom_factor;
+    int zoom_factor_num,zoom_factor_denom; // expressed as a fraction
     int flow_sample_separation; // only need to compute the flow every so often (X and Y should divide by this)
 
     double line_length;
-    bool put_obstacle;
     bool show_flow,show_flow_colours;
     int averaging_radius;
     bool force_flow;
@@ -121,7 +130,32 @@ private:
     bool save_images;
     int n_saved_images; // we output with frame number for convenience with other packages
 
+    wxPoint container_momentum; // we monitor the total overall momentum, for bug checking
+
 };
+
+// a small helper class to set the status text temporarily (while in scope)
+class SetStatusTextHelper
+{
+    public:
+        SetStatusTextHelper(wxString s,wxFrame* frame) 
+        {
+            // save the current text
+            this->our_frame = frame;
+            this->previous_status_text = frame->GetStatusBar()->GetStatusText(iPane);
+            frame->SetStatusText(s,iPane);
+        }
+        ~SetStatusTextHelper()
+        {
+            // restore the original text
+            this->our_frame->SetStatusText(this->previous_status_text,iPane);
+        }
+    private:
+        static const int iPane = 2;
+        wxFrame *our_frame;
+        wxString previous_status_text;
+};
+
 // ----------------------------------------------------------------------------
 // constants
 // ----------------------------------------------------------------------------
@@ -140,14 +174,19 @@ enum
     // (where it is special and put into the "Apple" menu)
     Minimal_About = wxID_ABOUT,
 
-    ID_GETTING_STARTED,
+    ID_GETTING_STARTED = wxID_HIGHEST,
     ID_STEP,
-    ID_RUN,
-    ID_STOP,
+    ID_RUN_OR_STOP,
     ID_CHANGE_LINE_LENGTH,
+    ID_SHOW_FLOW,
     ID_SHOW_FLOW_COLOURS,
     ID_CHANGE_AVERAGING_RADIUS,
     ID_SUBTRACT_MEAN_VELOCITY,
+    ID_DEMO_EDDIES,
+    ID_DEMO_PARTICLES,
+    ID_ZOOM_IN,
+    ID_ZOOM_OUT,
+    ID_SHOW_CURRENT_STATS,
 };
 
 // ----------------------------------------------------------------------------
@@ -162,13 +201,22 @@ BEGIN_EVENT_TABLE(MyFrame, wxFrame)
     EVT_MENU(Minimal_About, MyFrame::OnAbout)
     EVT_MENU(ID_GETTING_STARTED,MyFrame::OnGettingStarted)
     EVT_MENU(ID_STEP,MyFrame::OnStep)
-    EVT_MENU(ID_RUN,MyFrame::OnStart)
-    EVT_MENU(ID_STOP,MyFrame::OnStop)
+    EVT_UPDATE_UI(ID_STEP,MyFrame::OnUpdateStep)
+    EVT_MENU(ID_RUN_OR_STOP,MyFrame::OnRunOrStop)
     EVT_MENU(ID_CHANGE_LINE_LENGTH,MyFrame::OnChangeLineLength)
+    EVT_MENU(ID_SHOW_FLOW,MyFrame::OnShowFlow)
+    EVT_UPDATE_UI(ID_SHOW_FLOW,MyFrame::OnUpdateShowFlow)
     EVT_MENU(ID_SHOW_FLOW_COLOURS,MyFrame::OnShowFlowColours)
+    EVT_UPDATE_UI(ID_SHOW_FLOW_COLOURS,MyFrame::OnUpdateShowFlowColours)
     EVT_MENU(ID_CHANGE_AVERAGING_RADIUS,MyFrame::OnChangeAveragingRadius)
     EVT_MENU(ID_SUBTRACT_MEAN_VELOCITY,MyFrame::OnSubtractMeanVelocity)
+    EVT_UPDATE_UI(ID_SUBTRACT_MEAN_VELOCITY,MyFrame::OnUpdateSubtractMeanVelocity)
+    EVT_MENU(ID_DEMO_EDDIES,MyFrame::OnEddiesDemo)
+    EVT_MENU(ID_DEMO_PARTICLES,MyFrame::OnParticlesDemo)
     EVT_PAINT(MyFrame::OnPaint)
+    EVT_MENU(ID_ZOOM_IN,MyFrame::OnZoomIn)
+    EVT_MENU(ID_ZOOM_OUT,MyFrame::OnZoomOut)
+    EVT_MENU(ID_SHOW_CURRENT_STATS,MyFrame::OnShowCurrentStats)
 END_EVENT_TABLE()
 
 // Create a new application object: this macro will allow wxWidgets to create
@@ -227,27 +275,40 @@ MyFrame::MyFrame(const wxString& title)
     // add the file menu
     {
         wxMenu *fileMenu = new wxMenu;
-        fileMenu->Append(Minimal_Quit, _T("E&xit\tAlt-X"), _T("Quit this program"));
+        fileMenu->Append(Minimal_Quit, _T("E&xit\tAlt-F4"), _T("Quit this program"));
         menuBar->Append(fileMenu, _T("&File"));
+    }
+
+    // add the view menu
+    {
+        wxMenu *viewMenu = new wxMenu;
+        viewMenu->Append(ID_ZOOM_IN,_T("Zoom in\t+"));
+        viewMenu->Append(ID_ZOOM_OUT,_T("Zoom out\t-"));
+        viewMenu->AppendSeparator();
+        viewMenu->AppendCheckItem(ID_SHOW_FLOW,_T("Show the flow"),_T(""));
+        viewMenu->Append(ID_CHANGE_LINE_LENGTH,_T("Change line length..."),_T(""));
+        viewMenu->AppendCheckItem(ID_SHOW_FLOW_COLOURS,_T("Show flow colours"),_T(""));
+        viewMenu->Append(ID_CHANGE_AVERAGING_RADIUS,_T("Change averaging radius..."),_T(""));
+        viewMenu->AppendCheckItem(ID_SUBTRACT_MEAN_VELOCITY,_T("Subtract mean velocity"));
+        viewMenu->AppendSeparator();
+        viewMenu->Append(ID_SHOW_CURRENT_STATS,_T("Show statistics for this instant\tF2"));
+        menuBar->Append(viewMenu, _T("&View"));
     }
 
     // add the actions menu
     {
         wxMenu *actionsMenu = new wxMenu;
-        actionsMenu->Append(ID_STEP, _T("Step\tSPACE"), _T("Advance one timestep"));
-        actionsMenu->Append(ID_RUN, _T("Run\tENTER"), _T("Start running"));
-        actionsMenu->Append(ID_STOP, _T("Stop\tCtrl-Enter"), _T("Stop running"));
+        actionsMenu->Append(ID_STEP, _T("Step\tSpace"), _T("Advance one timestep"));
+        actionsMenu->Append(ID_RUN_OR_STOP, _T("Run / Stop\tEnter"), _T("Start/stop running"));
+        actionsMenu->AppendSeparator();
+        // add a demos submenu
+        {
+            wxMenu *demosMenu = new wxMenu;
+            demosMenu->Append(ID_DEMO_EDDIES,_T("Eddies in the wake of a cylinder"));
+            demosMenu->Append(ID_DEMO_PARTICLES,_T("A few gas particles colliding"));
+            actionsMenu->AppendSubMenu(demosMenu,_T("Reset with an inbuilt demo:"));
+        }
         menuBar->Append(actionsMenu, _T("&Actions"));
-    }
-
-    // add the options menu
-    {
-        wxMenu *optionsMenu = new wxMenu;
-        optionsMenu->Append(ID_CHANGE_LINE_LENGTH,_T("Change line length"),_T(""));
-        optionsMenu->Append(ID_SHOW_FLOW_COLOURS,_T("Show flow colours"),_T(""));
-        optionsMenu->Append(ID_CHANGE_AVERAGING_RADIUS,_T("Change averaging radius"),_T(""));
-        optionsMenu->Append(ID_SUBTRACT_MEAN_VELOCITY,_T("Subtract mean velocity"));
-        menuBar->Append(optionsMenu, _T("&Options"));
     }
 
     // add the help menu
@@ -265,9 +326,7 @@ MyFrame::MyFrame(const wxString& title)
 #endif // wxUSE_MENUS
 
 #if wxUSE_STATUSBAR
-    // create a status bar just for fun (by default with 1 pane only)
-    CreateStatusBar(2);
-    SetStatusText(_T(""));
+    CreateStatusBar(3);
 #endif // wxUSE_STATUSBAR
 
     // initialize the pairwise interaction table
@@ -338,46 +397,25 @@ MyFrame::MyFrame(const wxString& title)
 
     srand((unsigned int)time(NULL));
     wxInitAllImageHandlers();
-    ResetGrid(2000,1000);
+    ResetGridForEddiesExample();
 }
 
-void MyFrame::ResetGrid(int x_size,int y_size)
+void MyFrame::ResizeGrid(int x_size,int y_size)
 {
+    this->need_redraw_images = true;
+    this->need_recompute_flow = true;
+    this->iterations = 0;
+    this->is_running = false;
+    this->have_taken_first_velocity_average = false;
+    this->n_saved_images = 1;
+    this->current_buffer=0;
+    this->old_buffer=1;
+    this->container_momentum = wxPoint(0,0);
+
     this->X = x_size;
     this->Y = y_size;
     this->grid[0].assign(X,vector<state>(Y));
     this->grid[1].assign(X,vector<state>(Y));
-
-    this->need_redraw_images = true;
-    this->need_recompute_flow = true;
-    this->subtract_mean_velocity = false;
-    this->line_length = 400;
-    this->show_flow_colours = true;
-    this->averaging_radius = 64;
-    this->iterations = 0;
-    this->is_running = false;
-    this->flow_sample_separation = 20;
-    this->have_taken_first_velocity_average = false;
-    this->n_saved_images = 1;
-    this->show_flow = true;
-    this->force_flow = true;
-    this->put_obstacle = true;
-    this->save_images = false;
-
-    this->current_buffer=0;
-    this->old_buffer=1;
-    for(int x=0;x<X;x++)
-    {
-        for(int y=0;y<Y;y++)
-        {
-            if(put_obstacle && sqrt(pow(x-X/8,2.0)+pow(y-Y/2,2.0))<100)
-                this->grid[current_buffer][x][y] = 5; // obstacle
-            else if(force_flow)
-                this->grid[current_buffer][x][y] = ((rand()%100)<flow_bias[x%2])?samples[rand()%N_SAMPLES]:0; // flow
-            else
-                this->grid[current_buffer][x][y] = (rand()%100==0)?samples[rand()%N_SAMPLES]:0; // sparse atoms
-        }
-    }
 
     // initialize the velocity arrays
     this->velocity.assign(X/this->flow_sample_separation,
@@ -385,23 +423,98 @@ void MyFrame::ResetGrid(int x_size,int y_size)
     this->averaged_velocity.assign(X/this->flow_sample_separation,
         vector<wxRealPoint>(Y/this->flow_sample_separation,wxRealPoint(0,0)));
 
-    this->zoom_factor=10;
     // scale down the visible grid until we it is sensible to show
     {
+        // try: 10,9,...,2,1,1/2,1/3,1/4,...
+        int zn=10,zd=1;
         int ms = max(X,Y);
-        while(ms*this->zoom_factor>1000.0)
+        while((ms*zn)/zd>1000)
         {
-            if(this->zoom_factor>1.0) this->zoom_factor -= 1.0;
-            else this->zoom_factor /= 2.0;
+            if(zn>1) zn--;
+            else zd++;
         }
+        RequestZoomFactor(zn,zd);
     }
-    this->drawing_image.Create(this->X * this->zoom_factor, this->Y * this->zoom_factor);
-    this->density_image.Create(this->X * this->zoom_factor, this->Y * this->zoom_factor);
+}
+
+bool MyFrame::RequestZoomFactor(int num,int denom)
+{
+    // just check this wouldn't make too big an image (could only draw the bit we need to show, in future)
+    {
+        long int n_pixels = (this->X * num / denom)*(this->Y * num / denom);
+        if(n_pixels>10e6) return false;
+    }
+    this->zoom_factor_num = num;
+    this->zoom_factor_denom = denom;
+
+    // resize the images we draw into
+    this->drawing_image.Create(this->X * this->zoom_factor_num / this->zoom_factor_denom, 
+        this->Y * this->zoom_factor_num / this->zoom_factor_denom);
+    this->density_image.Create(this->X * this->zoom_factor_num / this->zoom_factor_denom, 
+        this->Y * this->zoom_factor_num / this->zoom_factor_denom);
 
     // select a bitmap into the drawing buffer
     this->drawing_buffer.SelectObject(this->drawing_image);
+
+    if(this->zoom_factor_denom>1)
+        SetStatusText(wxString::Format(_T("Zoom: 1/%d"),this->zoom_factor_denom),1);
+    else
+        SetStatusText(wxString::Format(_T("Zoom: %d"),this->zoom_factor_num),1);
+
+    return true;
 }
 
+void MyFrame::ResetGridForEddiesExample()
+{
+    this->subtract_mean_velocity = false;
+    this->line_length = 400;
+    this->show_flow_colours = true;
+    this->averaging_radius = 32;
+    this->flow_sample_separation = 20;
+    this->show_flow = true;
+    this->force_flow = true;
+    this->save_images = false;
+    this->running_step = 50;
+
+    this->ResizeGrid(2000,1000);
+
+    for(int x=0;x<X;x++)
+    {
+        for(int y=0;y<Y;y++)
+        {
+            if(sqrt(pow(x-X/8,2.0)+pow(y-Y/2,2.0))<100)
+                this->grid[current_buffer][x][y] = 5; // obstacle
+            else
+                this->grid[current_buffer][x][y] = ((rand()%100)<flow_bias[x%2])?samples[rand()%N_SAMPLES]:0; // flow
+        }
+    }
+}
+
+void MyFrame::ResetGridForParticlesExample()
+{
+    this->subtract_mean_velocity = false;
+    this->line_length = 1;
+    this->show_flow_colours = true;
+    this->averaging_radius = 0;
+    this->flow_sample_separation = 1;
+    this->show_flow = true;
+    this->force_flow = false;
+    this->save_images = false;
+    this->running_step = 1;
+
+    this->ResizeGrid(70,50);
+
+    for(int x=0;x<X;x++)
+    {
+        for(int y=0;y<Y;y++)
+        {
+            if(sqrt(pow(x-X/8,2.0)+pow(y-Y/2,2.0))<4)
+                this->grid[current_buffer][x][y] = 5; // obstacle
+            else
+                this->grid[current_buffer][x][y] = ((rand()%200)==0)?(rand()%5):0; // sparse atoms
+        }
+    }
+}
 
 // event handlers
 
@@ -414,8 +527,8 @@ void MyFrame::OnQuit(wxCommandEvent& WXUNUSED(event))
 void MyFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
 {
     wxMessageBox(_T("Lattice Gas Explorer\n\
-Copyright (C) 2008 Tim J. Hutton <tim.hutton@gmail.com>\n\
-http://www.sq3.org.uk\n\
+Copyright (C) 2008 Tim J. Hutton <tim.hutton@gmail.com> - http://www.sq3.org.uk\n\n\
+Project homepage: http://code.google.com/p/latticegas\n\
 \n\
 This program is free software: you can redistribute it and/or modify \
 it under the terms of the GNU General Public License as published by \
@@ -436,52 +549,53 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>."),
 
 void MyFrame::RedrawImages()
 {
-    //int colour;
-    int s;
-    // draw the density image
-    //const wxColour colours[6] =  {wxColour(0,0,0),wxColour(200,200,200),wxColour(0,255,255),
-    //    wxColour(255,255,0),wxColour(255,255,255),wxColour(255,0,0)};
-    const wxColour colours[6] =  {wxColour(255,255,255),wxColour(255,255,255),wxColour(255,255,255),
-        wxColour(255,255,255),wxColour(255,255,255),wxColour(120,120,120)};
+    SetStatusTextHelper sth(_T("Redrawing images..."),this);
+
     for(int x=0;x<X;x++)
     {
         for(int y=0;y<Y;y++)
         {
-            s = grid[current_buffer][x][y];
-            //colour=(s>0)?255:0;
-            //colour = ((s&NE)?63:0) + ((s&SE)?63:0) + ((s&SW)?63:0) + ((s&NW)?63:0);
-            //density_image.SetRGB(x,y,colour,colour,colour);
-            if(this->zoom_factor>1.0)
+            state s = grid[current_buffer][x][y];
+            if(this->zoom_factor_denom==1)
             {
-                wxRealPoint v;
+                // when the cells themselves are big enough to see, colour them by their direction
                 wxColour c;
-                switch(s)
-                {
-                    default: break;
-                    case 2: if(x%2) v=wxRealPoint(1,0); else v=wxRealPoint(-1,0); break;
-                    case 3: if(y%2) v=wxRealPoint(0,1); else v=wxRealPoint(0,-1); break;
-                    case 4: if(x%2 && y%2) v=wxRealPoint(1,1); else if(x%2 && !(y%2)) v=wxRealPoint(1,-1);
-                            else if(!(x%2) && y%2) v=wxRealPoint(-1,1); else v=wxRealPoint(-1,-1); break;
-                }
                 if(s==0) c=wxColour(0,0,0);
                 else if(s==1) c=wxColour(200,200,200);
+                else if(s==5) c=wxColour(120,120,120);
                 else {
-                    double angle = atan2(v.y,v.x)/(2*3.14159265358979);
+                    wxRealPoint v;
+                    switch(s)
+                    {
+                        default: break;
+                        case 2: if(x%2) v=wxRealPoint(1,0); else v=wxRealPoint(-1,0); break;
+                        case 3: if(y%2) v=wxRealPoint(0,1); else v=wxRealPoint(0,-1); break;
+                        case 4: if(x%2 && y%2) v=wxRealPoint(1,1); else if(x%2 && !(y%2)) v=wxRealPoint(1,-1);
+                                else if(!(x%2) && y%2) v=wxRealPoint(-1,1); else v=wxRealPoint(-1,-1); break;
+                    }
+                    double angle = 0.5 + atan2(v.y,v.x)/(2*3.14159265358979);
                     wxImage::RGBValue rgb = wxImage::HSVtoRGB(wxImage::HSVValue(angle,1.0,1.0));
                     c = wxColour(rgb.red,rgb.green,rgb.blue);
                 }
-                for(int i=x * this->zoom_factor;i<(x+1) * this->zoom_factor;i++)
+                for(int i=x * this->zoom_factor_num / this->zoom_factor_denom;i<(x+1) * this->zoom_factor_num / this->zoom_factor_denom;i++)
                 {
-                    for(int j=y*this->zoom_factor;j<(y+1)*this->zoom_factor;j++)
+                    for(int j=y*this->zoom_factor_num / this->zoom_factor_denom;j<(y+1)*this->zoom_factor_num / this->zoom_factor_denom;j++)
                     {
-                        density_image.SetRGB(i,j,c.Red(),c.Green(),c.Blue());
+                        // we check bounds in case something has changed during drawing
+                        if(i>=0&&i<density_image.GetWidth()&&j>=0&&j<density_image.GetHeight())
+                            density_image.SetRGB(i,j,c.Red(),c.Green(),c.Blue());
                     }
                 }
             }
             else
             {
-                density_image.SetRGB(x * this->zoom_factor,y * this->zoom_factor,
-                    colours[s].Red(),colours[s].Green(),colours[s].Blue());
+                // when zoomed out beyond 1 pixel per cell, just draw the obstacles
+                wxColour c = (s==5)?wxColour(120,120,120):wxColour(255,255,255);
+                int i = x * this->zoom_factor_num / this->zoom_factor_denom;
+                int j = y * this->zoom_factor_num / this->zoom_factor_denom;
+                // we check bounds in case something has changed during drawing
+                if(i>=0&&i<density_image.GetWidth()&&j>=0&&j<density_image.GetHeight())
+                    density_image.SetRGB(i,j,c.Red(),c.Green(),c.Blue());
             }
         }
     }
@@ -511,12 +625,14 @@ void MyFrame::RedrawImages()
                     v.x -= averaged_velocity[sx][sy].x;
                     v.y -= averaged_velocity[sx][sy].y;
                 }
-                angle = 0.5+atan2(v.y,v.x)/(2*3.14159265358979);
+                angle = 0.5 + atan2(v.y,v.x)/(2*3.14159265358979);
                 wxImage::RGBValue rgb = wxImage::HSVtoRGB(wxImage::HSVValue(angle,1.0,1.0));
                 if(this->show_flow_colours)
                     this->drawing_buffer.SetPen(wxPen(wxColour(rgb.red,rgb.green,rgb.blue)));
-                this->drawing_buffer.DrawLine(x * this->zoom_factor,y * this->zoom_factor,
-                    (x+v.x*this->line_length)*this->zoom_factor,(y+v.y*this->line_length)*this->zoom_factor);
+                this->drawing_buffer.DrawLine((x+0.5) * this->zoom_factor_num / this->zoom_factor_denom,
+                    (y+0.5) * this->zoom_factor_num / this->zoom_factor_denom,
+                    (x+0.5+v.x*this->line_length)*this->zoom_factor_num / this->zoom_factor_denom,
+                    (y+0.5+v.y*this->line_length)*this->zoom_factor_num / this->zoom_factor_denom);
             }
         }
     }
@@ -524,40 +640,44 @@ void MyFrame::RedrawImages()
     this->need_redraw_images = false;
 }
 
-void MyFrame::OnPaint(wxPaintEvent& /*event*/)
+void MyFrame::OnPaint(wxPaintEvent& event)
 {
     if(this->need_redraw_images)
         RedrawImages();
 
     wxPaintDC dc(this);
-    dc.Blit(0,0,X*this->zoom_factor,Y*this->zoom_factor,&this->drawing_buffer,0,0);
+    dc.Blit(0,0,X*this->zoom_factor_num / this->zoom_factor_denom,
+        Y*this->zoom_factor_num / this->zoom_factor_denom,&this->drawing_buffer,0,0);
 
-    wxLogStatus(_T("%d iterations"),this->iterations);
+    SetStatusText(wxString::Format(_T("%d iterations"),this->iterations),0);
 
     if(this->is_running)
     {
         if(this->save_images)
         {
-            wxLogStatus(_T("Saving image snapshot..."));
-            ostringstream oss;
-            oss << setw(4) << setfill('0') << this->n_saved_images++ << ".jpg";
-            this->drawing_image.SaveFile(wxString(oss.str().c_str(),wxConvUTF8),wxBITMAP_TYPE_JPEG);
+            SetStatusTextHelper sth(_T("Saving image snapshot..."),this);
+            this->drawing_image.SaveFile(wxString::Format(_T("%04d.jpg"),this->n_saved_images++),wxBITMAP_TYPE_JPEG);
         }
         static bool warm_up = false;
         if(warm_up)
         {
-            wxLogStatus(_T("Performing warm up..."));
+            SetStatusTextHelper sth(_T("Performing warm up..."),this);
             for(int i=0;i<50;i++) 
             {
                 for(int j=0;j<60;j++) 
-                    this->Update();
+                    this->UpdateGas();
                 ComputeFlow(); // we want to find the averaged_velocity
             }
             warm_up=false;
         }
-        wxLogStatus(_T("Performing gas calculations..."));
-        for(int i=0;i<100;i++) 
-            this->Update();
+        {
+            SetStatusTextHelper sth(_T("Performing gas calculations..."),this);
+            for(int i=0;i<this->running_step && this->is_running;i++) 
+            {
+                this->UpdateGas();
+                wxYield(); // allow the user to interrupt
+            }
+        } // (without these scope limits, the screen doesn't update on linux)
         this->Refresh(false);
     }
 }
@@ -580,7 +700,7 @@ void MyFrame::ApplyVerticalPairwiseInteraction(state &a,state &b)
     a = temp_a;
 }
 
-void MyFrame::Update()
+void MyFrame::UpdateGas()
 {
     current_buffer = old_buffer;
     old_buffer = 1-current_buffer;
@@ -598,6 +718,60 @@ void MyFrame::Update()
 
     // -- phase 2: simple transport --
 
+    // (this is a poor implementation, should be a lot more efficient)
+
+    // start with an empty grid
+    for(int x=0;x<X;x++)
+        for(int y=0;y<Y;y++)
+            this->grid[current_buffer][x][y]=0;
+
+    #pragma omp parallel for
+    for(int x=0;x<X;x++)
+    {
+        // (need to declare these things here else omp causes problems)
+        int sx,sy;
+        state s,s2;
+        for(int y=0;y<Y;y++)
+        {
+            s = this->grid[old_buffer][x][y];
+            if(s==5) 
+                this->grid[current_buffer][x][y]=5;      // boundaries don't change
+            else if(s>0)
+            {
+                // try simple transport
+                if(x%2) sx=x+2; else sx=x-2;
+                if(y%2) sy=y+2; else sy=y-2;
+                if(sx>=X) sx-=X; else if(sx<0) sx+=X; // left-right wraps around
+                if(sy>=Y) sy-=3; else if(sy<0) sy+=3; // top-bottom bounces (no-slip)
+                s2 = this->grid[old_buffer][sx][sy];
+                if(s2!=5)
+                    this->grid[current_buffer][sx][sy]=s; // simple transport
+                else {
+                    // try the square in between
+                    if(x%2) sx=x+1; else sx=x-1;
+                    if(y%2) sy=y+1; else sy=y-1;
+                    if(sx>=X) sx-=X; else if(sx<0) sx+=X; // left-right wraps around
+                    if(sy>=Y) sy-=1; else if(sy<0) sy+=1; // top-bottom bounces (no-slip)
+                    s2 = this->grid[old_buffer][sx][sy];
+                    if(s2!=5)
+                        this->grid[current_buffer][sx][sy]=s; // bounce transport
+                    else
+                    {
+                        // try to bounce back
+                        if(x%2) sx=x-1; else sx=x+1;
+                        if(y%2) sy=y-1; else sy=y+1;
+                        if(sx>=X) sx-=X; else if(sx<0) sx+=X; // left-right wraps around
+                        if(sy>=Y) sy-=1; else if(sy<0) sy+=1; // top-bottom bounces (no-slip)
+                        s2 = this->grid[old_buffer][sx][sy];
+                        if(s2!=5)
+                            this->grid[current_buffer][sx][sy]=s; // bounce back transport
+                        else
+                            this->grid[current_buffer][x][y]=s; // particles is trapped here!
+                    }
+                }
+            }
+        }
+    }
     if(this->force_flow)
     {
         // the left-most column is overwritten, since we are modelling flow in an infinite tube
@@ -605,39 +779,10 @@ void MyFrame::Update()
         {
             for(int y=0;y<Y;y++)
             {
-                this->grid[current_buffer][x][y] = ((rand()%100)<flow_bias[x%2])?samples[rand()%N_SAMPLES]:0;
-            }
-        }
-    }
-    #pragma omp parallel for
-    for(int x=(this->force_flow?2:0);x<X;x++)
-    {
-        // (need to declare these things here else omp causes problems)
-        int sx,sy; // the cell coming here
-        state s;
-        for(int y=0;y<Y;y++)
-        {
-            if(this->grid[old_buffer][x][y]==5) 
-                this->grid[current_buffer][x][y]=5;      // boundaries don't change
-            else
-            {
-                if(x%2 && y%2) { sx=x-2; sy=y-2; }
-                else if(x%2 && !(y%2)) { sx=x-2; sy=y+2; }
-                else if(!(x%2) && y%2) { sx=x+2; sy=y-2; }
-                else { sx=x+2; sy=y+2; }
-                // left-right wraps around
-                if(sx<0) sx+=X;
-                else if(sx>=X) sx-=X;
-                // top and bottom reflect (slip)
-                if(sy<0) sy+=1; // (these assume Y%2==0)
-                else if(sy>=Y) sy-=1;
-                // retrieve the source state
-                s = this->grid[old_buffer][sx][sy];
-                // if coming from a boundary then take the input from the bouncing atom instead (no-slip)
-                if(s==5)
-                    s = this->grid[old_buffer][(x+sx)/2][(y+sy)/2];
-                // copy the cell over
-                this->grid[current_buffer][x][y] = s;
+                if(this->grid[old_buffer][x][y]==5)
+                    this->grid[current_buffer][x][y] = 5;
+                else
+                    this->grid[current_buffer][x][y] = ((rand()%100)<flow_bias[x%2])?samples[rand()%N_SAMPLES]:0;
             }
         }
     }
@@ -648,7 +793,7 @@ void MyFrame::Update()
 
 void MyFrame::ComputeFlow()
 {
-    wxLogStatus(_T("Computing average flow patterns..."));
+    SetStatusTextHelper sth(_T("Computing average flow patterns..."),this);
     // recompute the locally-averaged velocities
     const int R = this->averaging_radius;
     const double avF=0.95; // for a running average we take a weighted mix of the previous average and the new value
@@ -659,9 +804,9 @@ void MyFrame::ComputeFlow()
         {
             wxRealPoint v(0,0);
             int n_counted = 0;
-            for(int dx=max(0,x-R);dx<=min(X-1,x+R+1);dx++)
+            for(int dx=max(0,x-R);dx<=min(X-1,x+R);dx++) // (do we need to include an even mix of the sides of the 2x2 cells?)
             {
-                for(int dy=max(0,y-R);dy<=min(Y-1,y+R+1);dy++)
+                for(int dy=max(0,y-R);dy<=min(Y-1,y+R);dy++)
                 {
                     state s = grid[current_buffer][dx][dy];
                     switch(s)
@@ -696,28 +841,25 @@ void MyFrame::ComputeFlow()
 
 void MyFrame::OnStep(wxCommandEvent& /*event*/)
 {
-    this->Update();
+    this->UpdateGas();
     this->Refresh(false);
 }
 
-void MyFrame::OnStart(wxCommandEvent& /*event*/)
+void MyFrame::OnUpdateStep(wxUpdateUIEvent& event)
 {
-    this->is_running = true;
-    this->Refresh(false);
+    event.Enable(!this->is_running);
 }
 
-void MyFrame::OnStop(wxCommandEvent& /*event*/)
+void MyFrame::OnRunOrStop(wxCommandEvent& /*event*/)
 {
-    this->is_running = false;
+    this->is_running = !this->is_running;
     this->Refresh(false);
 }
 
 void MyFrame::OnChangeLineLength(wxCommandEvent& /*event*/)
 {
-    ostringstream oss;
-    oss << this->line_length;
     wxGetTextFromUser(_T("Enter the line length:"),_T("Line lengths"),
-        wxString(oss.str().c_str(),wxConvUTF8)).ToDouble(&this->line_length);
+        wxString::Format(_T("%.0f"),this->line_length)).ToDouble(&this->line_length);
     this->need_redraw_images = true;
     this->Refresh(false);
 }
@@ -729,6 +871,11 @@ void MyFrame::OnShowFlowColours(wxCommandEvent& /*event*/)
     this->Refresh(false);
 }
 
+void MyFrame::OnUpdateShowFlowColours(wxUpdateUIEvent& event)
+{
+    event.Check(this->show_flow_colours);
+}
+
 void MyFrame::OnSubtractMeanVelocity(wxCommandEvent& /*event*/)
 {
     this->subtract_mean_velocity = !this->subtract_mean_velocity;
@@ -736,13 +883,16 @@ void MyFrame::OnSubtractMeanVelocity(wxCommandEvent& /*event*/)
     this->Refresh(false);
 }
 
+void MyFrame::OnUpdateSubtractMeanVelocity(wxUpdateUIEvent& event)
+{
+    event.Check(this->subtract_mean_velocity);
+}
+
 void MyFrame::OnChangeAveragingRadius(wxCommandEvent& /*event*/)
 {
-    ostringstream oss;
-    oss << this->averaging_radius;
     long int ar;
     wxGetTextFromUser(_T("Enter the averaging radius:"),_T("Averaging radius"),
-        wxString(oss.str().c_str(),wxConvUTF8)).ToLong(&ar);
+        wxString::Format(_T("%d"),this->averaging_radius)).ToLong(&ar);
     this->averaging_radius = ar;
     this->need_recompute_flow = this->need_redraw_images = true;
     this->Refresh(false);
@@ -750,11 +900,84 @@ void MyFrame::OnChangeAveragingRadius(wxCommandEvent& /*event*/)
 
 void MyFrame::OnGettingStarted(wxCommandEvent& /*event*/)
 {
-    wxMessageBox(_T("Set the simulation running (Actions menu : Run). The fluid flows around the obstacle.\n\n\
+    wxMessageBox(_T("Set the simulation running (press 'Enter' to start and stop). The fluid flows around the obstacle.\n\n\
 After a few thousand timesteps the flow has become unstable, with alternating vortices being shed. \
-Turn on 'subtract mean velocity' and increase the line length to 4000 to better see them.\n\n\
+Turn on 'subtract mean velocity' and increase the line length to 2000 to better see them.\n\n\
+Try the other demos (Actions menu) to see more.\n\n\
 This is an implementation of the pair-interaction lattice gas cellular automata. Search the web for \
 more information on lattice gases.\n\n\
 For more advanced changes, explore the source code."),_T("Getting started"),wxOK | wxICON_INFORMATION,
                  this);
+}
+
+void MyFrame::OnEddiesDemo(wxCommandEvent& /*event*/)
+{
+    this->ResetGridForEddiesExample();
+    this->Refresh(true);
+}
+
+void MyFrame::OnParticlesDemo(wxCommandEvent& /*event*/)
+{
+    this->ResetGridForParticlesExample();
+    this->Refresh(true);
+}
+
+void MyFrame::OnZoomIn(wxCommandEvent& /*event*/)
+{
+    bool ret;
+    if(this->zoom_factor_denom==1)
+        ret = this->RequestZoomFactor(this->zoom_factor_num+1,this->zoom_factor_denom);
+    else 
+        ret = this->RequestZoomFactor(this->zoom_factor_num,this->zoom_factor_denom-1);
+    if(!ret)
+    {
+        wxMessageBox(_T("Resulting image too large, can't zoom in any further."));
+        return;
+    }
+    this->need_redraw_images = true;
+    this->Refresh(true);
+}
+
+void MyFrame::OnZoomOut(wxCommandEvent& /*event*/)
+{
+    if(this->zoom_factor_num>1) this->RequestZoomFactor(this->zoom_factor_num-1,this->zoom_factor_denom);
+    else this->RequestZoomFactor(this->zoom_factor_num,this->zoom_factor_denom+1);
+    this->need_redraw_images = true;
+    this->Refresh(true);
+}
+
+void MyFrame::OnShowFlow(wxCommandEvent& /*event*/)
+{
+    this->show_flow = !this->show_flow;
+    this->need_redraw_images = true;
+    this->Refresh(true);
+}
+
+void MyFrame::OnUpdateShowFlow(wxUpdateUIEvent& event)
+{
+    event.Check(this->show_flow);
+}
+
+void MyFrame::OnShowCurrentStats(wxCommandEvent& /*event*/)
+{
+    int n_boundary_cells=0,n_gas_particles=0;
+    int x_momentum=0,y_momentum=0;
+    for(int x=0;x<X;x++)
+    {
+        for(int y=0;y<Y;y++)
+        {
+            state s = this->grid[current_buffer][x][y];
+            if(s==5) n_boundary_cells++;
+            else if(s>0)
+            {
+                n_gas_particles++;
+                if((s==2||s==4) && (x%2)==1) x_momentum++;
+                else if((s==2||s==4) && (x%2)==0) x_momentum--;
+                else if((s==3||s==4) && (y%2)==1) y_momentum++;
+                else if((s==3||s==4) && (y%2)==0) y_momentum--;
+            }
+        }
+    }
+    wxMessageBox(wxString::Format(_T("Size: (%d,%d)\nBoundary cells: %d\nGas particles: %d\nTotal gas momentum: (%d,%d)"),
+        X,Y,n_boundary_cells,n_gas_particles,x_momentum,y_momentum));
 }
