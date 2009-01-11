@@ -34,7 +34,7 @@
 using namespace std;
 
 // OpenMP:
-#include <omp.h> // comment this out if you don't have OpenMP (you might also need to set USE_OMP=OFF in cmake)
+//#include <omp.h> // comment this out if you don't have OpenMP (you might also need to set USE_OMP=OFF in cmake)
 
 // Define a new application type, each program should derive a class from wxApp
 class MyApp : public wxApp
@@ -71,6 +71,8 @@ public:
     void OnUpdateShowFlow(wxUpdateUIEvent& event);
     void OnShowFlowColours(wxCommandEvent& event);
     void OnUpdateShowFlowColours(wxUpdateUIEvent& event);
+    void OnShowGrid(wxCommandEvent& event);
+    void OnUpdateShowGrid(wxUpdateUIEvent& event);
     void OnChangeAveragingRadius(wxCommandEvent& event);
     void OnSubtractMeanVelocity(wxCommandEvent& event);
     void OnUpdateSubtractMeanVelocity(wxUpdateUIEvent& event);
@@ -122,7 +124,7 @@ private:
     int flow_sample_separation; // only need to compute the flow every so often (X and Y should divide by this)
 
     double line_length;
-    bool show_flow,show_flow_colours;
+    bool show_flow,show_flow_colours,show_grid;
     int averaging_radius;
     bool force_flow;
     bool subtract_mean_velocity;
@@ -180,6 +182,7 @@ enum
     ID_CHANGE_LINE_LENGTH,
     ID_SHOW_FLOW,
     ID_SHOW_FLOW_COLOURS,
+	ID_SHOW_GRID,
     ID_CHANGE_AVERAGING_RADIUS,
     ID_SUBTRACT_MEAN_VELOCITY,
     ID_DEMO_EDDIES,
@@ -208,6 +211,8 @@ BEGIN_EVENT_TABLE(MyFrame, wxFrame)
     EVT_UPDATE_UI(ID_SHOW_FLOW,MyFrame::OnUpdateShowFlow)
     EVT_MENU(ID_SHOW_FLOW_COLOURS,MyFrame::OnShowFlowColours)
     EVT_UPDATE_UI(ID_SHOW_FLOW_COLOURS,MyFrame::OnUpdateShowFlowColours)
+    EVT_MENU(ID_SHOW_GRID,MyFrame::OnShowGrid)
+    EVT_UPDATE_UI(ID_SHOW_GRID,MyFrame::OnUpdateShowGrid)
     EVT_MENU(ID_CHANGE_AVERAGING_RADIUS,MyFrame::OnChangeAveragingRadius)
     EVT_MENU(ID_SUBTRACT_MEAN_VELOCITY,MyFrame::OnSubtractMeanVelocity)
     EVT_UPDATE_UI(ID_SUBTRACT_MEAN_VELOCITY,MyFrame::OnUpdateSubtractMeanVelocity)
@@ -288,6 +293,7 @@ MyFrame::MyFrame(const wxString& title)
         viewMenu->AppendCheckItem(ID_SHOW_FLOW,_T("Show the flow"),_T(""));
         viewMenu->Append(ID_CHANGE_LINE_LENGTH,_T("Change line length..."),_T(""));
         viewMenu->AppendCheckItem(ID_SHOW_FLOW_COLOURS,_T("Show flow colours"),_T(""));
+		viewMenu->AppendCheckItem(ID_SHOW_GRID,_T("Show grid"),_T(""));
         viewMenu->Append(ID_CHANGE_AVERAGING_RADIUS,_T("Change averaging radius..."),_T(""));
         viewMenu->AppendCheckItem(ID_SUBTRACT_MEAN_VELOCITY,_T("Subtract mean velocity"));
         viewMenu->AppendSeparator();
@@ -446,7 +452,7 @@ bool MyFrame::RequestZoomFactor(int num,int denom)
     }
     this->zoom_factor_num = num;
     this->zoom_factor_denom = denom;
-
+ 
     // resize the images we draw into
     this->drawing_image.Create(this->X * this->zoom_factor_num / this->zoom_factor_denom, 
         this->Y * this->zoom_factor_num / this->zoom_factor_denom);
@@ -469,12 +475,13 @@ void MyFrame::ResetGridForEddiesExample()
     this->subtract_mean_velocity = false;
     this->line_length = 400;
     this->show_flow_colours = true;
+	this->show_grid = false;
     this->averaging_radius = 32;
     this->flow_sample_separation = 20;
     this->show_flow = true;
     this->force_flow = true;
     this->save_images = false;
-    this->running_step = 50;
+    this->running_step = 25;
 
     this->ResizeGrid(2000,1000);
 
@@ -495,6 +502,7 @@ void MyFrame::ResetGridForParticlesExample()
     this->subtract_mean_velocity = false;
     this->line_length = 1;
     this->show_flow_colours = true;
+	this->show_grid = true;
     this->averaging_radius = 0;
     this->flow_sample_separation = 1;
     this->show_flow = true;
@@ -556,7 +564,7 @@ void MyFrame::RedrawImages()
         for(int y=0;y<Y;y++)
         {
             state s = grid[current_buffer][x][y];
-            if(this->zoom_factor_denom==1)
+            if(this->zoom_factor_denom==1) // ie. zoomed in enough to see cells
             {
                 // when the cells themselves are big enough to see, colour them by their direction
                 wxColour c;
@@ -583,7 +591,15 @@ void MyFrame::RedrawImages()
                     {
                         // we check bounds in case something has changed during drawing
                         if(i>=0&&i<density_image.GetWidth()&&j>=0&&j<density_image.GetHeight())
-                            density_image.SetRGB(i,j,c.Red(),c.Green(),c.Blue());
+						{
+							// draw grid if zoomed in enough
+							if(this->show_grid && this->zoom_factor_num>=8 && 
+								((x%2==0 && i==x * this->zoom_factor_num / this->zoom_factor_denom) ||
+								(y%2==0 && j==y * this->zoom_factor_num / this->zoom_factor_denom) ))
+									density_image.SetRGB(i,j,255,255,255);
+							else
+								density_image.SetRGB(i,j,c.Red(),c.Green(),c.Blue());
+						}
                     }
                 }
             }
@@ -640,7 +656,7 @@ void MyFrame::RedrawImages()
     this->need_redraw_images = false;
 }
 
-void MyFrame::OnPaint(wxPaintEvent& event)
+void MyFrame::OnPaint(wxPaintEvent& /*event*/)
 {
     if(this->need_redraw_images)
         RedrawImages();
@@ -675,7 +691,6 @@ void MyFrame::OnPaint(wxPaintEvent& event)
             for(int i=0;i<this->running_step && this->is_running;i++) 
             {
                 this->UpdateGas();
-                wxYield(); // allow the user to interrupt
             }
         } // (without these scope limits, the screen doesn't update on linux)
         this->Refresh(false);
@@ -874,6 +889,18 @@ void MyFrame::OnShowFlowColours(wxCommandEvent& /*event*/)
 void MyFrame::OnUpdateShowFlowColours(wxUpdateUIEvent& event)
 {
     event.Check(this->show_flow_colours);
+}
+
+void MyFrame::OnShowGrid(wxCommandEvent& /*event*/)
+{
+    this->show_grid = !this->show_grid;
+    this->need_redraw_images = true;
+    this->Refresh(false);
+}
+
+void MyFrame::OnUpdateShowGrid(wxUpdateUIEvent& event)
+{
+    event.Check(this->show_grid);
 }
 
 void MyFrame::OnSubtractMeanVelocity(wxCommandEvent& /*event*/)
