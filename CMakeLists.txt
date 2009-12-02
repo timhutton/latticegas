@@ -1,10 +1,28 @@
+#
+#    Lattice Gas Explorer
+#    Copyright (C) 2008-2009 Tim J. Hutton <tim.hutton@gmail.com>
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
 project(LatticeGasExplorer)
 
 cmake_minimum_required(VERSION 2.6)
 
 #-----------------
 
-# if you don't have multiple CPUs you can use OpenMP to get the program to run faster
+# if you have multiple CPUs you can use OpenMP to get the program to run faster
 OPTION(USE_OMP "Use OpenMP" ON)
 
 IF(USE_OMP)
@@ -38,6 +56,23 @@ LINK_LIBRARIES(${wxWidgets_LIBRARIES})
 ADD_EXECUTABLE(LatticeGasExplorer
   WIN32
   src/lga.cpp
+  src/BaseLatticeGas.cpp
+  src/BaseLatticeGas.h
+  src/BaseLatticeGas_drawable.cpp
+  src/BaseLatticeGas_drawable.h
+  src/SquareGridLatticeGas.cpp
+  src/SquareGridLatticeGas.h
+  src/HPPLatticeGas.cpp
+  src/HPPLatticeGas.h
+  src/PairInteractionLatticeGas.cpp
+  src/PairInteractionLatticeGas.h
+  src/HexGridLatticeGas.cpp
+  src/HexGridLatticeGas.h
+  src/FHPLatticeGas.cpp
+  src/FHPLatticeGas.h
+  src/LatticeGasFactory.cpp
+  src/LatticeGasFactory.h
+  src/wxWidgetsPreamble.h
 )
 
 install(TARGETS LatticeGasExplorer RUNTIME DESTINATION bin)
