@@ -42,7 +42,7 @@ class BaseLatticeGas_drawable : public BaseLatticeGas
         void RequestBestFitZoomFactor(int x,int y);
 
         virtual void RedrawImagesIfNeeded()=0;
-        void Draw(wxPaintDC& dc);
+        void Draw(wxPaintDC& dc,int x_offset,int y_offset);
         
         bool GetShowGas() const;
         void SetShowGas(bool show);
