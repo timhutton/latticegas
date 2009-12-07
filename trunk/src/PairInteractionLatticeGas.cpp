@@ -36,7 +36,7 @@ PairInteractionLatticeGas::PairInteractionLatticeGas()
         //state samples[] = {2,4}; // density: 50%, av. horiz. speed: 1.0 
         // (the above attempt misbehaves, as the gas is already moving at the speed of sound)
         state samples[] = {2,3,4}; // density: 50%, av. horiz. speed: 0.666
-        this->flow_samples.assign(samples,samples+sizeof(samples)/sizeof(state));
+        this->forward_flow_samples.assign(samples,samples+sizeof(samples)/sizeof(state));
         // (note that below we don't allow particles to move backwards, we leave the x=0 column
         //  empty when forcing the flow (see the details of PI-LGA for why))
     }
@@ -197,7 +197,7 @@ void PairInteractionLatticeGas::UpdateGas()
                 if(OldBuffer[x][y]==BOUNDARY)
                     NewBuffer[x][y] = BOUNDARY;
                 else
-                    NewBuffer[x][y] = (x%2)?this->flow_samples[rand()%this->flow_samples.size()]:0; // only flow to the right
+                    NewBuffer[x][y] = (x%2)?this->forward_flow_samples[rand()%this->forward_flow_samples.size()]:0; // only flow to the right
             }
         }
     }
@@ -237,14 +237,14 @@ RealPoint PairInteractionLatticeGas::GetAverageInputFlowVelocityPerParticle() co
     // up/down (3) or diagonally up and right (4)
     float flow_speed = 0.0f;
     int n_counted = 0;
-    for(int i=0;i<(int)this->flow_samples.size();i++)
+    for(int i=0;i<(int)this->forward_flow_samples.size();i++)
     {
-        state s = this->flow_samples[i];
+        state s = this->forward_flow_samples[i];
         // states: 0=empty, 1=rest particle, 2="x-mover", 3="y-mover", 4="diag-mover"
         if(s==2 || s==4)
             flow_speed += 1.0f;
     }
-    return RealPoint(flow_speed / this->flow_samples.size(),0.0);
+    return RealPoint(flow_speed / this->forward_flow_samples.size(),0.0);
 }
 
 float PairInteractionLatticeGas::GetAverageInputNumParticlesPerCell() const
@@ -253,14 +253,14 @@ float PairInteractionLatticeGas::GetAverageInputNumParticlesPerCell() const
     // but leave the left one (x=0) empty, so particles only move to the right (2),
     // up/down (3) or diagonally up and right (4)
     int n_counted = 0;
-    for(int i=0;i<(int)this->flow_samples.size();i++)
+    for(int i=0;i<(int)this->forward_flow_samples.size();i++)
     {
-        state s = this->flow_samples[i];
+        state s = this->forward_flow_samples[i];
         // states: 0=empty, 1=rest particle, 2="x-mover", 3="y-mover", 4="diag-mover"
         if(s>0)
             n_counted++;
     }
-    return (n_counted/2.0) / this->flow_samples.size(); // because we leave one column empty
+    return (n_counted/2.0) / this->forward_flow_samples.size(); // because we leave one column empty
 }
 
 int PairInteractionLatticeGas::GetNumGasParticlesAt(int x,int y) const
@@ -319,7 +319,12 @@ void PairInteractionLatticeGas::InsertRandomParticle(int x,int y)
 
 void PairInteractionLatticeGas::InsertRandomFlow(int x, int y)
 {
-    this->grid[current_buffer][x][y] = (x%2)?this->flow_samples[rand()%this->flow_samples.size()]:0; // flow
+    this->grid[current_buffer][x][y] = (x%2)?this->forward_flow_samples[rand()%this->forward_flow_samples.size()]:0; // flow
+}
+
+void PairInteractionLatticeGas::InsertRandomBackwardFlow(int x, int y)
+{
+    this->grid[current_buffer][x][y] = (1-(x%2))?this->forward_flow_samples[rand()%this->forward_flow_samples.size()]:0; // flow
 }
 
 string PairInteractionLatticeGas::GetReport(state s) const
@@ -408,7 +413,13 @@ void PairInteractionLatticeGas::RedrawImagesIfNeeded()
             {
                 int sx=x/this->flow_sample_separation,sy=y/this->flow_sample_separation;
                 RealPoint v(velocity[sx][sy]);
-                if(this->subtract_mean_velocity)
+                if(this->velocity_representation == Velocity_SubtractGlobalMean)
+                {
+                    // we subtract the averaged velocity at this point, to better highlight the dynamic changes
+                    v.x -= global_mean_velocity.x;
+                    v.y -= global_mean_velocity.y;
+                }
+                else if(this->velocity_representation == Velocity_SubtractPointMean)
                 {
                     // we subtract the averaged velocity at this point, to better highlight the dynamic changes
                     v.x -= averaged_velocity[sx][sy].x;
@@ -427,8 +438,8 @@ void PairInteractionLatticeGas::RedrawImagesIfNeeded()
     /* we can save images to make an animation but this is currently dormant
     if(this->save_images)
     {
-        SetStatusTextHelper sth(_T("Saving image snapshot..."),this);
-        this->drawing_bitmap.SaveFile(wxString::Format(_T("%04d.jpg"),this->n_saved_images++),wxBITMAP_TYPE_JPEG);
+        SetStatusTextHelper sth(_("Saving image snapshot..."),this);
+        this->drawing_bitmap.SaveFile(wxString::Format(_("%04d.jpg"),this->n_saved_images++),wxBITMAP_TYPE_JPEG);
     }*/
 
     this->need_redraw_images = false;

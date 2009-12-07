@@ -135,10 +135,16 @@ FHPLatticeGas::FHPLatticeGas(FHP_type type) : fhp_type(type)
     // optional debug checks:
     if(true)
     {
-        int n_cases_swapped = 0;
-        for(vector<TStates>::iterator it=this->collision_classes.begin();it!=this->collision_classes.end();it++)
-            n_cases_swapped += it->size();
-        // should be: FHP-I: 5 of 64, FHP6: 20 of 64, FHP-II: 22 of 128, FHP-III: 76 of 128
+        {
+            int n_cases_swapped = 0;
+            for(vector<TStates>::iterator it=this->collision_classes.begin();it!=this->collision_classes.end();it++)
+                n_cases_swapped += it->size();
+            // should be: 
+            // FHP-I: 5 of 64 (in 2 classes)
+            // FHP6: 20 of 64 (in 9 classes)
+            // FHP-II: 22 of 128 (in 10 classes)
+            // FHP-III: 76 of 128 (in 28 classes)
+        }
         try 
         {
             // check that all these collision cases maintain momentum and mass
@@ -157,13 +163,20 @@ FHPLatticeGas::FHPLatticeGas(FHP_type type) : fhp_type(type)
 
     // create the flow_samples array
     //state samples[] = { NE, SE, E, NE, SE, E, NE, SE, E, NE, SE, E, NW, SW, W }; 
-    state samples[] = { NE, SE, E, W, E};
-    this->flow_samples.assign(samples,samples+sizeof(samples)/sizeof(state));
+    state forward_samples[] = { NE, SE, E, W, E};
+    this->forward_flow_samples.assign(forward_samples,forward_samples+sizeof(forward_samples)/sizeof(state));
+    state backward_samples[] = { SW, NW, W, E, W};
+    this->backward_flow_samples.assign(backward_samples,backward_samples+sizeof(backward_samples)/sizeof(state));
 }
 
 void FHPLatticeGas::InsertRandomFlow(int x,int y)
 {
-    this->grid[current_buffer][x][y] = this->flow_samples[rand()%this->flow_samples.size()];
+    this->grid[current_buffer][x][y] = this->forward_flow_samples[rand()%this->forward_flow_samples.size()];
+}
+
+void FHPLatticeGas::InsertRandomBackwardFlow(int x,int y)
+{
+    this->grid[current_buffer][x][y] = this->backward_flow_samples[rand()%this->backward_flow_samples.size()];
 }
 
 void FHPLatticeGas::InsertRandomParticle(int x,int y)
@@ -181,29 +194,58 @@ void FHPLatticeGas::UpdateGas()
     const vector<vector<state> > &OldBuffer = this->grid[old_buffer];
     vector<vector<state> > &NewBuffer = this->grid[current_buffer];
 
+    //const vector<vector<vector<state*> > > & oldbuf_nbors_lut = this->nbors_lut[old_buffer];
+
     int from_x = force_flow?1:0;
 
-    #pragma omp parallel for
+    /*const state* p1= &OldBuffer[1][0];
+    const state* p2 = &OldBuffer[2][0];
+    const int pDiff = &OldBuffer[2][0] - &OldBuffer[1][0];
+    const state* p3 = p1+pDiff;
+    wxASSERT(p3==p2);*/
+
+    //#pragma omp parallel for
     for(int y=0;y<Y;y++)
     {
+        //const state* nbors_lut[N_DIRS];
         const vector<vector<int> > &nbors = NBORS[y%2]; // alternate rows are indented (see HexGridLatticeGas)
         state new_state,nbor;
-        int dir,opposite_dir;
+        int dir,oppositedir;
         for(int x=from_x;x<X;x++)
         {
+            /*if(x<=1 || x==X-1)
+            {
+                // initialise nbors_lut
+                for(dir=0;dir<N_DIRS;dir++)
+                    nbors_lut[dir] = &(OldBuffer[(x+nbors[opposite_dir(dir)][0]+X)%X][(y+nbors[opposite_dir(dir)][1]+Y)%Y]);
+            }
+            else
+            {
+                // increment nbors_lut (faster)
+                for(dir=0;dir<N_DIRS;dir++)
+                {
+                    nbors_lut[dir]+=pDiff; // pointer increment
+                    p1 = &(OldBuffer[(x+nbors[opposite_dir(dir)][0]+X)%X][(y+nbors[opposite_dir(dir)][1]+Y)%Y]);
+                    wxASSERT(nbors_lut[dir] == p1);
+                    int d=1;
+                }
+            }*/
             const state& c = OldBuffer[x][y];
             if(c==BOUNDARY) continue;
             new_state = c & REST;
-            for(dir=0,opposite_dir=N_DIRS/2;dir<N_DIRS;dir++,opposite_dir=(opposite_dir+1)%N_DIRS) 
+            for(dir=0,oppositedir=N_DIRS/2;dir<N_DIRS;dir++,oppositedir=(oppositedir+1)%N_DIRS) 
                 // (this is the innermost loop: optimize here!)
             {
-                nbor = OldBuffer[(x+nbors[opposite_dir][0]+X)%X][(y+nbors[opposite_dir][1]+Y)%Y];
+                nbor = OldBuffer[(x+nbors[oppositedir][0]+X)%X][(y+nbors[oppositedir][1]+Y)%Y];
+                //nbor = *oldbuf_nbors_lut[dir][x][y];
+                //nbor = *(nbors_lut[dir]);
+                //nbor = OldBuffer[(x+nbors[opposite_dir(dir)][0]+X)%X][(y+nbors[opposite_dir(dir)][1]+Y)%Y];
                 if(nbor!=BOUNDARY)
                 {
                     // accept an inbound particle travelling in this direction, if there is one
                     new_state |= nbor&(1<<dir);
                 }
-                else if(c&(1<<opposite_dir))
+                else if(c&(1<<oppositedir))
                 {
                     // or if the neighbor is a boundary then reverse one of our own particles
                     new_state |= 1<<dir;
@@ -223,11 +265,10 @@ void FHPLatticeGas::UpdateGas()
             // an infinite tube filled with moving gas
             s = OldBuffer[0][y];
             if(s==BOUNDARY) continue;
-            s = this->flow_samples[rand()%this->flow_samples.size()];
+            s = this->forward_flow_samples[rand()%this->forward_flow_samples.size()];
             NewBuffer[0][y]=s;
         }
     }
-
 
     this->iterations++;
     this->need_recompute_flow = true;
@@ -238,9 +279,9 @@ RealPoint FHPLatticeGas::GetAverageInputFlowVelocityPerParticle() const
 {
     RealPoint flow(0,0);
     int n_particles_counted = 0;
-    for(int i=0;i<(int)this->flow_samples.size();i++)
+    for(int i=0;i<(int)this->forward_flow_samples.size();i++)
     {
-        state s = this->flow_samples[i];
+        state s = this->forward_flow_samples[i];
         for(int dir=0;dir<N_DIRS;dir++)
         {
             if(s&(1<<dir))
@@ -260,9 +301,9 @@ RealPoint FHPLatticeGas::GetAverageInputFlowVelocityPerParticle() const
 float FHPLatticeGas::GetAverageInputNumParticlesPerCell() const
 {
     int n_particles_counted = 0;
-    for(int i=0;i<(int)this->flow_samples.size();i++)
+    for(int i=0;i<(int)this->forward_flow_samples.size();i++)
     {
-        state s = this->flow_samples[i];
+        state s = this->forward_flow_samples[i];
         for(int i=0;i<7;i++)
         {
             if(s&(1<<i))
@@ -274,7 +315,7 @@ float FHPLatticeGas::GetAverageInputNumParticlesPerCell() const
             }
         }
     }
-    return n_particles_counted / (float)this->flow_samples.size();
+    return n_particles_counted / (float)this->forward_flow_samples.size();
 }
 
 int FHPLatticeGas::GetNumGasParticlesAt(int x, int y) const
@@ -545,24 +586,6 @@ void FHPLatticeGas::VerifyIsCollisionSaturated()
     }
 }
 
-void FHPLatticeGas::ResetGridForParticlesExample()
-{
-    BaseLatticeGas_drawable::ResetGridForParticlesExample();
-    /*ResizeGrid(40,30);
-
-    // two particles colliding head on
-    SetAt(3,4,SW);
-    SetAt(2,6,NE);
-    SetAt(2,5,REST);
-    //SetAt(2,10,E);
-    //SetAt(4,10,W);
-    //SetAt(2,12,SE);
-    //SetAt(3,14,NW);
-    // two particles collide with spectator
-   // SetAt(
-   */
-}
-
 string FHPLatticeGas::GetReport(state s) const
 {
     ostringstream oss;
@@ -585,3 +608,25 @@ string FHPLatticeGas::GetReport(state s) const
     }
     return oss.str();
 }
+
+void FHPLatticeGas::ResizeGrid(int x_size,int y_size)
+{
+    BaseLatticeGas_drawable::ResizeGrid(x_size,y_size);
+    // resize the nbors_lut and fill with pointers
+    /*for(int iBuf=0;iBuf<2;iBuf++)
+    {
+        this->nbors_lut[iBuf].assign(N_DIRS,vector<vector<state*> >(X,vector<state*>(Y)));
+        for(int dir=0;dir<N_DIRS;dir++)
+        {
+            for(int x=0;x<X;x++)
+            {
+                for(int y=0;y<Y;y++)
+                {
+                    this->nbors_lut[iBuf][dir][x][y] = 
+                        & this->grid[iBuf][(x+NBORS[y%2][opposite_dir(dir)][0]+X)%X][(y+NBORS[y%2][opposite_dir(dir)][1]+Y)%Y];
+                }
+            }
+        }
+    }*/
+}
+

@@ -47,6 +47,14 @@ ENDIF(USE_OMP)
 
 #-----------------------------------------------------------------------------
 
+# Here you can define what libraries of wxWidgets you need for your
+# application. You can figure out what libraries you need here;
+# http://www.wxwidgets.org/manuals/2.8/wx_librarieslist.html
+IF(WIN32)
+  SET(wxWidgets_USE_LIBS base core html)
+ENDIF(WIN32)
+
+
 FIND_PACKAGE(wxWidgets REQUIRED)
 INCLUDE(${wxWidgets_USE_FILE})
 LINK_LIBRARIES(${wxWidgets_LIBRARIES})

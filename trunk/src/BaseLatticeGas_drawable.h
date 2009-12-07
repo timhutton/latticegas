@@ -22,9 +22,6 @@
 // local:
 #include "BaseLatticeGas.h"
 
-// wxWidgets:
-#include "wxWidgetsPreamble.h"
-
 // STL:
 #include <algorithm>
 using std::min;
@@ -42,6 +39,7 @@ class BaseLatticeGas_drawable : public BaseLatticeGas
         void ZoomOut();
         void GetZoom(int &num,int &denom) const;
         bool RequestZoomFactor(int num,int denom);
+        void RequestBestFitZoomFactor(int x,int y);
 
         virtual void RedrawImagesIfNeeded()=0;
         void Draw(wxPaintDC& dc);
@@ -59,9 +57,7 @@ class BaseLatticeGas_drawable : public BaseLatticeGas
         bool GetShowGrid() const;
         void SetShowGrid(bool show);
 
-        void ResetGridForObstacleExample(); // override
-        void ResetGridForHoleExample(); // override
-        void ResetGridForParticlesExample(); // override
+        void ResetGridForDemo(int i); // override
 
     protected: // functions
 

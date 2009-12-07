@@ -22,24 +22,27 @@
 #include "FHPLatticeGas.h"
 #include "PairInteractionLatticeGas.h"
 
+enum { GasType_HPP_diag, GasType_HPP_ortho, GasType_FHP_I, GasType_FHP_6,
+    GasType_FHP_II, GasType_FHP_III, GasType_PI, GasType_Kagome, GasType_LAST };
+
 int LatticeGasFactory::GetNumGasTypesSupported()
 {
-    return 8;
+    return GasType_LAST;
 }
 
-const char* LatticeGasFactory::GetGasDescription(int type)
+wxString LatticeGasFactory::GetGasDescription(int type)
 {
     switch(type)
     {
-        case 0: return "HPP (diagonal movement)";
-        case 1: return "HPP (vertical/horizontal movement)";
-        case 2: return "FHP-I";
-        case 3: return "FHP6";
-        case 4: return "FHP-II";
-        case 5: return "FHP-III";
-        case 6: return "Pair-Interaction";
-        case 7: return "Kagome (Boghosian et al., 2002)";
-        default: return "ERROR!";
+        case GasType_HPP_diag: return _("HPP (diagonal movement)");
+        case GasType_HPP_ortho: return _("HPP (vertical/horizontal movement)");
+        case GasType_FHP_I: return _("FHP-I");
+        case GasType_FHP_6: return _("FHP6");
+        case GasType_FHP_II: return _("FHP-II");
+        case GasType_FHP_III: return _("FHP-III");
+        case GasType_PI: return _("Pair-Interaction");
+        case GasType_Kagome: return _("Kagome (Boghosian et al., 2002)");
+        default: return _("ERROR!");
     }
 }
 
@@ -47,14 +50,14 @@ BaseLatticeGas_drawable* LatticeGasFactory::CreateGas(int type)
 {
     switch(type)
     {
-        case 0: return new HPPLatticeGas(HPPLatticeGas::Diagonal); 
-        case 1: return new HPPLatticeGas(HPPLatticeGas::HorizontalVertical); 
-        case 2: return new FHPLatticeGas(FHPLatticeGas::FHP_I); 
-        case 3: return new FHPLatticeGas(FHPLatticeGas::FHP_6); 
-        case 4: return new FHPLatticeGas(FHPLatticeGas::FHP_II); 
-        case 5: return new FHPLatticeGas(FHPLatticeGas::FHP_III); 
-        case 6: return new PairInteractionLatticeGas(); 
-        case 7: return NULL; // TODO!
+        case GasType_HPP_diag: return new HPPLatticeGas(HPPLatticeGas::Diagonal); 
+        case GasType_HPP_ortho: return new HPPLatticeGas(HPPLatticeGas::HorizontalVertical); 
+        case GasType_FHP_I: return new FHPLatticeGas(FHPLatticeGas::FHP_I); 
+        case GasType_FHP_6: return new FHPLatticeGas(FHPLatticeGas::FHP_6); 
+        case GasType_FHP_II: return new FHPLatticeGas(FHPLatticeGas::FHP_II); 
+        case GasType_FHP_III: return new FHPLatticeGas(FHPLatticeGas::FHP_III); 
+        case GasType_PI: return new PairInteractionLatticeGas(); 
+        case GasType_Kagome: return NULL; // TODO!
         default: return NULL;
     }
 }

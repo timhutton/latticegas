@@ -37,7 +37,7 @@ class HexGridLatticeGas : public BaseLatticeGas_drawable
 
         static const int N_DIRS = 6; // how many directions do the particles travel in?
         float DIR[N_DIRS][2]; // what direction is each travelling in? (clockwise from East)
-        static state opposite_dir(state s) { return (s+N_DIRS/2)%N_DIRS; }
+        static int opposite_dir(int s) { return (s+N_DIRS/2)%N_DIRS; }
 
         // We store the hex grid with every alternate row indented, so it maps nicely onto
         // a rectangular area. The only complication is that to access the neighbours you

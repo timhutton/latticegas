@@ -45,6 +45,7 @@ class PairInteractionLatticeGas : public SquareGridLatticeGas
         int GetMaxNumGasParticlesAt(int x,int y) const; // override
 
         void InsertRandomFlow(int x,int y); // override
+        void InsertRandomBackwardFlow(int x,int y); // override
         void InsertRandomParticle(int x,int y); // override
         
         void RedrawImagesIfNeeded(); // override
