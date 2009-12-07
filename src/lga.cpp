@@ -16,14 +16,17 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// wxWidgets
+// wxWidgets:
 #include "wxWidgetsPreamble.h"
+#include <wx/html/htmlwin.h>
+#include <wx/statline.h>
 
 // local:
 #include "LatticeGasFactory.h"
 
 // STL:
-#include <sstream>
+#include <stdexcept>
+#include <exception>
 using namespace std;
 
 // OpenMP
@@ -52,11 +55,14 @@ public:
     ~MyFrame();
 
     void OnPaint(wxPaintEvent& event);
+    void OnIdle(wxIdleEvent& event);
     // file menu
     void OnQuit(wxCommandEvent& event);
     // view menu
     void OnZoomIn(wxCommandEvent& event);
     void OnZoomOut(wxCommandEvent& event);
+    void OnFitToWindow(wxCommandEvent& event);
+    void OnChangeRedrawStep(wxCommandEvent& event);
     void OnShowGas(wxCommandEvent& event);
     void OnUpdateShowGas(wxUpdateUIEvent& event);
     void OnShowGasColours(wxCommandEvent& event);
@@ -71,18 +77,14 @@ public:
     void OnUpdateChangeLineLength(wxUpdateUIEvent& event);
     void OnChangeAveragingRadius(wxCommandEvent& event);
     void OnUpdateChangeAveragingRadius(wxUpdateUIEvent& event);
-    void OnSubtractMeanVelocity(wxCommandEvent& event);
-    void OnUpdateSubtractMeanVelocity(wxUpdateUIEvent& event);
+    void OnChangeToVelocityRepresentationN(wxCommandEvent& event);
+    void OnUpdateVelocityRepresentationN(wxUpdateUIEvent& event);
     // actions menu
     void OnStep(wxCommandEvent& event);
     void OnUpdateStep(wxUpdateUIEvent& event);
     void OnRunOrStop(wxCommandEvent& event);
-    void OnParticlesDemo(wxCommandEvent& event);
-    void OnUpdateParticlesDemo(wxUpdateUIEvent& event);
-    void OnObstacleDemo(wxCommandEvent& event);
-    void OnUpdateObstacleDemo(wxUpdateUIEvent& event);
-    void OnHoleDemo(wxCommandEvent& event);
-    void OnUpdateHoleDemo(wxUpdateUIEvent& event);
+    void OnDemoN(wxCommandEvent& event);
+    void OnUpdateDemoN(wxUpdateUIEvent& event);
     void OnChangeToGasTypeN(wxCommandEvent& event);
     void OnUpdateChangeToGasTypeN(wxUpdateUIEvent& event);
     void OnGetReport(wxCommandEvent& event);
@@ -123,6 +125,7 @@ enum
 
     ID_ZOOM_IN = wxID_HIGHEST,
     ID_ZOOM_OUT,
+    ID_FIT_TO_WINDOW,
 
     ID_SHOW_GAS,
     ID_SHOW_GAS_COLOURS,
@@ -132,19 +135,22 @@ enum
     ID_SHOW_FLOW_COLOURS,
     ID_CHANGE_LINE_LENGTH,
     ID_CHANGE_AVERAGING_RADIUS,
-    ID_SUBTRACT_MEAN_VELOCITY,
+
+    ID_VELOCITY_REPRESENTATION_0,
+    ID_MAX_VELOCITY_REPRESENTATION = ID_VELOCITY_REPRESENTATION_0 + 10,
+
+    ID_CHANGE_REDRAW_STEP,
 
     // actions menu:
 
     ID_STEP,
     ID_RUN_OR_STOP,
     
-    ID_DEMO_PARTICLES,
-    ID_DEMO_OBSTACLE,
-    ID_DEMO_HOLE,
+    ID_DEMO_0,
+    ID_MAX_DEMO = ID_DEMO_0 + 100,
 
     ID_GAS_TYPE_0,
-    ID_MAX_GAS_TYPE = ID_GAS_TYPE_0 + 100, // "should be enough for anyone"
+    ID_MAX_GAS_TYPE = ID_GAS_TYPE_0 + 100,
 
     ID_GET_REPORT,
 
@@ -162,11 +168,14 @@ enum
 // simple menu events like this the static method is much simpler.
 BEGIN_EVENT_TABLE(MyFrame, wxFrame)
     EVT_PAINT(MyFrame::OnPaint)
+    EVT_IDLE(MyFrame::OnIdle)
     // file menu:
     EVT_MENU(Minimal_Quit,  MyFrame::OnQuit)
     // view menu:
     EVT_MENU(ID_ZOOM_IN,MyFrame::OnZoomIn)
     EVT_MENU(ID_ZOOM_OUT,MyFrame::OnZoomOut)
+    EVT_MENU(ID_FIT_TO_WINDOW,MyFrame::OnFitToWindow)
+    EVT_MENU(ID_CHANGE_REDRAW_STEP,MyFrame::OnChangeRedrawStep)
     EVT_MENU(ID_SHOW_GAS,MyFrame::OnShowGas)
     EVT_UPDATE_UI(ID_SHOW_GAS,MyFrame::OnUpdateShowGas)
     EVT_MENU(ID_SHOW_GAS_COLOURS,MyFrame::OnShowGasColours)
@@ -181,19 +190,12 @@ BEGIN_EVENT_TABLE(MyFrame, wxFrame)
     EVT_UPDATE_UI(ID_CHANGE_LINE_LENGTH,MyFrame::OnUpdateChangeLineLength)
     EVT_MENU(ID_CHANGE_AVERAGING_RADIUS,MyFrame::OnChangeAveragingRadius)
     EVT_UPDATE_UI(ID_CHANGE_AVERAGING_RADIUS,MyFrame::OnUpdateChangeAveragingRadius)
-    EVT_MENU(ID_SUBTRACT_MEAN_VELOCITY,MyFrame::OnSubtractMeanVelocity)
-    EVT_UPDATE_UI(ID_SUBTRACT_MEAN_VELOCITY,MyFrame::OnUpdateSubtractMeanVelocity)
+    // (no velocity representation options here; we manually add them in the constructor)
     // actions menu:
     EVT_MENU(ID_STEP,MyFrame::OnStep)
     EVT_UPDATE_UI(ID_STEP,MyFrame::OnUpdateStep)
     EVT_MENU(ID_RUN_OR_STOP,MyFrame::OnRunOrStop)
-    EVT_MENU(ID_DEMO_PARTICLES,MyFrame::OnParticlesDemo)
-    EVT_UPDATE_UI(ID_DEMO_PARTICLES,MyFrame::OnUpdateParticlesDemo)
-    EVT_MENU(ID_DEMO_OBSTACLE,MyFrame::OnObstacleDemo)
-    EVT_UPDATE_UI(ID_DEMO_OBSTACLE,MyFrame::OnUpdateObstacleDemo)
-    EVT_MENU(ID_DEMO_HOLE,MyFrame::OnHoleDemo)
-    EVT_UPDATE_UI(ID_DEMO_HOLE,MyFrame::OnUpdateHoleDemo)
-    // (no gas types here; we manually add them in the constructor)
+    // (no demos or gas types here; we manually add them in the constructor)
     EVT_MENU(ID_GET_REPORT,MyFrame::OnGetReport)
     // help menu:
     EVT_MENU(ID_GETTING_STARTED,MyFrame::OnGettingStarted)
@@ -224,7 +226,7 @@ bool MyApp::OnInit()
         return false;
 
     // create the main application window
-    MyFrame *frame = new MyFrame(_T("Lattice Gas Explorer"));
+    MyFrame *frame = new MyFrame(_("Lattice Gas Explorer"));
 
     // and show it (the frames, unlike simple controls, are not shown when
     // created initially)
@@ -253,68 +255,88 @@ MyFrame::MyFrame(const wxString& title)
     // add the file menu
     {
         wxMenu *fileMenu = new wxMenu;
-        fileMenu->Append(Minimal_Quit, _T("E&xit\tAlt-F4"), _T("Quit this program"));
-        menuBar->Append(fileMenu, _T("&File"));
+        fileMenu->Append(Minimal_Quit, _("E&xit\tAlt-F4"), _("Quit this program"));
+        menuBar->Append(fileMenu, _("&File"));
     }
 
     // add the view menu
     {
         wxMenu *viewMenu = new wxMenu;
-        viewMenu->Append(ID_ZOOM_IN,_T("Zoom in\t+"));
-        viewMenu->Append(ID_ZOOM_OUT,_T("Zoom out\t-"));
+        viewMenu->Append(ID_ZOOM_IN,_("Zoom in\t+"),_("Draw the gas at a larger scale"));
+        viewMenu->Append(ID_ZOOM_OUT,_("Zoom out\t-"),_("Draw the gas at a smaller scale"));
+        viewMenu->Append(ID_FIT_TO_WINDOW,_("Fit to &window\tw"),_("Scale and pan the image so it is all visible"));
         viewMenu->AppendSeparator();
-        viewMenu->AppendCheckItem(ID_SHOW_GAS,_T("Show gas"),_T(""));
-        viewMenu->AppendCheckItem(ID_SHOW_GAS_COLOURS,_T("Show gas colours"),_T(""));
-        viewMenu->AppendCheckItem(ID_SHOW_GRID,_T("Show grid"),_T(""));
+        viewMenu->Append(ID_CHANGE_REDRAW_STEP,_("Change redraw step..."),_("Change how often the gas is redrawn"));
         viewMenu->AppendSeparator();
-        viewMenu->AppendCheckItem(ID_SHOW_FLOW,_T("Show the flow"),_T(""));
-        viewMenu->AppendCheckItem(ID_SHOW_FLOW_COLOURS,_T("Show flow colours"),_T(""));
-        viewMenu->Append(ID_CHANGE_LINE_LENGTH,_T("Change flow line length..."),_T(""));
-        viewMenu->Append(ID_CHANGE_AVERAGING_RADIUS,_T("Change flow averaging radius..."),_T(""));
-        viewMenu->AppendCheckItem(ID_SUBTRACT_MEAN_VELOCITY,_T("Subtract mean velocity"));
-        menuBar->Append(viewMenu, _T("&View"));
+        viewMenu->AppendCheckItem(ID_SHOW_GAS,_("Show &gas\tg"),_("Turn on/off the display of the gas particles"));
+        viewMenu->AppendCheckItem(ID_SHOW_GAS_COLOURS,_("Show gas colours"),_("Show either gas density or gas direction as colours"));
+        viewMenu->AppendCheckItem(ID_SHOW_GRID,_("Show grid"),_("Turn on/off the lattice grid (when zoomed in enough)"));
+        viewMenu->AppendSeparator();
+        viewMenu->AppendCheckItem(ID_SHOW_FLOW,_("Show the &flow\tf"),_("Turn on/off the display of flowlines"));
+        viewMenu->AppendCheckItem(ID_SHOW_FLOW_COLOURS,_("Show flow colours"),_("Show flowlines with colours that depict their direction, or as black"));
+        viewMenu->Append(ID_CHANGE_LINE_LENGTH,_("Change flow line length..."),_("Change the length of the flowlines"));
+        viewMenu->Append(ID_CHANGE_AVERAGING_RADIUS,_("Change flow averaging radius..."),_("Change the area over which the velocity is averaged"));
+        viewMenu->AppendSeparator();
+        // add the item to the submenu and manually connect the events
+        if(ID_VELOCITY_REPRESENTATION_0+BaseLatticeGas::GetNumVelocityRepresentations() > ID_MAX_VELOCITY_REPRESENTATION)
+            throw runtime_error("Internal error: need more velocity representation IDs!");
+        for(int i=0;i<BaseLatticeGas::GetNumVelocityRepresentations();i++)
+        {
+            viewMenu->AppendRadioItem(ID_VELOCITY_REPRESENTATION_0+i,BaseLatticeGas::GetVelocityRepresentationAsString(i),_("Switch to this representation of velocity"));
+            Connect(ID_VELOCITY_REPRESENTATION_0+i,wxEVT_COMMAND_MENU_SELECTED,wxCommandEventHandler(MyFrame::OnChangeToVelocityRepresentationN));
+            Connect(ID_VELOCITY_REPRESENTATION_0+i,wxEVT_UPDATE_UI,wxUpdateUIEventHandler(MyFrame::OnUpdateVelocityRepresentationN));
+            // (alternative to using the static event table above)
+        }
+        menuBar->Append(viewMenu, _("&View"));
     }
 
     // add the actions menu
     {
         wxMenu *actionsMenu = new wxMenu;
-        actionsMenu->Append(ID_STEP, _T("Step\tSpace"), _T("Advance one timestep"));
-        actionsMenu->Append(ID_RUN_OR_STOP, _T("Run / Stop\tEnter"), _T("Start/stop running"));
+        actionsMenu->Append(ID_STEP, _("Step\tSpace"), _("Advance one timestep"));
+        actionsMenu->Append(ID_RUN_OR_STOP, _("Run / Stop\tEnter"), _("Start/stop running"));
         actionsMenu->AppendSeparator();
         // add a demo type submenu
         {
             wxMenu *demosMenu = new wxMenu;
-            demosMenu->AppendRadioItem(ID_DEMO_PARTICLES,_T("A few gas particles colliding"));
-            demosMenu->AppendRadioItem(ID_DEMO_OBSTACLE,_T("Eddies in the wake of an obstacle"));
-            demosMenu->AppendRadioItem(ID_DEMO_HOLE,_T("Flow through a hole"));
-            actionsMenu->AppendSubMenu(demosMenu,_T("Demo type:"));
+            if(ID_DEMO_0+BaseLatticeGas::GetNumDemos() > ID_MAX_DEMO)
+                throw runtime_error("Internal error: need more demo IDs!");
+            for(int i=0;i<BaseLatticeGas::GetNumDemos();i++)
+            {
+                // add the item to the submenu and manually connect the events
+                demosMenu->AppendRadioItem(ID_DEMO_0+i,BaseLatticeGas::GetDemoDescription(i),_("Switch to this demo"));
+                Connect(ID_DEMO_0+i,wxEVT_COMMAND_MENU_SELECTED,wxCommandEventHandler(MyFrame::OnDemoN));
+                Connect(ID_DEMO_0+i,wxEVT_UPDATE_UI,wxUpdateUIEventHandler(MyFrame::OnUpdateDemoN));
+                // (alternative to using the static event table above)
+            }
+            actionsMenu->AppendSubMenu(demosMenu,_("Demo type:"));
         }
         // add a gas type submenu
         {
             wxMenu *gasTypeMenu = new wxMenu;
             if(ID_GAS_TYPE_0+LatticeGasFactory::GetNumGasTypesSupported() > ID_MAX_GAS_TYPE)
-                wxMessageBox(_T("Internal error: need more gas type IDs!"));
+                throw runtime_error("Internal error: need more gas type IDs!");
             for(int i=0;i<LatticeGasFactory::GetNumGasTypesSupported();i++)
             {
                 // add the item to the submenu and manually connect the events
-                gasTypeMenu->AppendRadioItem(ID_GAS_TYPE_0+i,wxString(LatticeGasFactory::GetGasDescription(i),wxConvUTF8));
+                gasTypeMenu->AppendRadioItem(ID_GAS_TYPE_0+i,LatticeGasFactory::GetGasDescription(i),_("Switch to this gas type"));
                 Connect(ID_GAS_TYPE_0+i,wxEVT_COMMAND_MENU_SELECTED,wxCommandEventHandler(MyFrame::OnChangeToGasTypeN));
                 Connect(ID_GAS_TYPE_0+i,wxEVT_UPDATE_UI,wxUpdateUIEventHandler(MyFrame::OnUpdateChangeToGasTypeN));
                 // (alternative to using the static event table above)
             }
-            actionsMenu->AppendSubMenu(gasTypeMenu,_T("Gas type:"));
+            actionsMenu->AppendSubMenu(gasTypeMenu,_("Gas type:"));
         }
-        actionsMenu->Append(ID_GET_REPORT,_T("Report gas details"));
-        menuBar->Append(actionsMenu, _T("&Actions"));
+        actionsMenu->Append(ID_GET_REPORT,_("Report gas details"),_("Show the statistics of the current gas"));
+        menuBar->Append(actionsMenu, _("&Actions"));
     }
 
     // add the help menu
     {
         wxMenu *helpMenu = new wxMenu;
-        helpMenu->Append(ID_GETTING_STARTED, _T("&Getting started\tF1"), _T("Show some information"));
+        helpMenu->Append(ID_GETTING_STARTED, _("&Getting started\tF1"), _("Show a mini tutorial to get you started"));
         helpMenu->AppendSeparator();
-        helpMenu->Append(Minimal_About, _T("&About...\tAlt-F1"), _T("Show about dialog"));
-        menuBar->Append(helpMenu, _T("&Help"));
+        helpMenu->Append(Minimal_About, _("&About...\tAlt-F1"), _("Show information about the program"));
+        menuBar->Append(helpMenu, _("&Help"));
     }
 
     // ... and attach this menu bar to the frame
@@ -339,21 +361,10 @@ MyFrame::MyFrame(const wxString& title)
 
 void MyFrame::LoadCurrentDemo()
 {
-    switch(this->current_demo)
-    {
-        case 0: 
-            this->gas->ResetGridForParticlesExample(); 
-            this->running_step = 1;
-            break;
-        case 1: 
-            this->gas->ResetGridForObstacleExample(); 
-            this->running_step = 10;
-            break;
-        case 2: 
-            this->gas->ResetGridForHoleExample(); 
-            this->running_step = 10;
-            break;
-    }
+    this->gas->ResetGridForDemo(this->current_demo);
+    this->gas->RequestBestFitZoomFactor(this->GetClientSize().GetWidth(),this->GetClientSize().GetHeight());
+    if(this->current_demo==0) this->running_step = 1;
+    else this->running_step = 10;
     this->is_running = false;
     this->Refresh(true);
 }
@@ -373,60 +384,104 @@ void MyFrame::OnQuit(wxCommandEvent& WXUNUSED(event))
 
 void MyFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
 {
-    wxMessageBox(_T("Lattice Gas Explorer\n\
-Copyright (C) 2008-9 Tim J. Hutton <tim.hutton@gmail.com>\nhttp://www.sq3.org.uk\n\n\
-Project homepage: http://code.google.com/p/latticegas\n\
-\n\
-This program is free software: you can redistribute it and/or modify\n\
-it under the terms of the GNU General Public License as published by\n\
-the Free Software Foundation, either version 3 of the License, or\n\
-(at your option) any later version.\n\
-\n\
-This program is distributed in the hope that it will be useful,\n\
-but WITHOUT ANY WARRANTY; without even the implied warranty of\n\
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n\
-GNU General Public License for more details.\n\
-\n\
-You should have received a copy of the GNU General Public License\n\
-along with this program.  If not, see <http://www.gnu.org/licenses/>."),
-                 _T("About Lattice Gas Explorer"),
-                 wxOK | wxICON_INFORMATION,
-                 this);
+    wxString text = _("<html><body><table><tr><td>\
+\
+<b>Lattice Gas Explorer</b>\
+\
+<p>Copyright (C) 2008-9 Tim J. Hutton<br>\
+<a href=\"mailto:tim.hutton@gmail.com\">tim.hutton@gmail.com</a><br>\
+<a href=\"http://www.sq3.org.uk\">http://www.sq3.org.uk</a></p>\
+\
+<p>Project homepage: <a href=\"http://code.google.com/p/latticegas\">http://code.google.com/p/latticegas</a></p>\
+\
+<p>This program is free software: you can redistribute it and/or modify \
+it under the terms of the GNU General Public License as published by \
+the Free Software Foundation, either version 3 of the License, or \
+(at your option) any later version.</p>\
+\
+<p>This program is distributed in the hope that it will be useful, \
+but WITHOUT ANY WARRANTY; without even the implied warranty of \
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the \
+GNU General Public License for more details.</p>\
+\
+<p>You should have received a copy of the GNU General Public License \
+along with this program.  If not, see \
+<a href=\"http://www.gnu.org/licenses/\">http://www.gnu.org/licenses/</a>.</p>\
+</td></tr></table></body></html>");
+
+    wxBoxSizer *topsizer;
+    wxHtmlWindow *html;
+    wxDialog dlg(this, wxID_ANY, wxString(_("About")));
+
+    topsizer = new wxBoxSizer(wxVERTICAL);
+
+    html = new wxHtmlWindow(&dlg, wxID_ANY, wxDefaultPosition, wxSize(380, 160), wxHW_SCROLLBAR_NEVER);
+    html -> SetBorders(0);
+    html -> SetPage(text);
+    html -> SetSize(html -> GetInternalRepresentation() -> GetWidth(),
+                    html -> GetInternalRepresentation() -> GetHeight());
+
+    topsizer -> Add(html, 1, wxALL, 10);
+
+#if wxUSE_STATLINE
+    topsizer -> Add(new wxStaticLine(&dlg, wxID_ANY), 0, wxEXPAND | wxLEFT | wxRIGHT, 10);
+#endif // wxUSE_STATLINE
+
+    wxButton *bu1 = new wxButton(&dlg, wxID_OK, _("OK"));
+    bu1 -> SetDefault();
+
+    topsizer -> Add(bu1, 0, wxALL | wxALIGN_RIGHT, 15);
+
+    dlg.SetSizer(topsizer);
+    topsizer -> Fit(&dlg);
+
+    dlg.ShowModal();
 }
 
 void MyFrame::OnPaint(wxPaintEvent& /*event*/)
 {
-    wxBusyCursor busy;
+    {
+        SetStatusText(_("Redrawing images..."),2);
+        // BUG: this message doesn't show up on linux, only on Windows
 
-    SetStatusText(_T("Redrawing images..."),2);
-    // BUG: this message doesn't show up on linux, only on Windows
+        wxPaintDC dc(this);
+        this->gas->Draw(dc);
+    }
 
-    wxPaintDC dc(this);
-    this->gas->Draw(dc);
-
-    SetStatusText(wxString::Format(_T("%d iterations"),this->gas->GetIterations()),0);
+    SetStatusText(wxString::Format(_("%d iterations"),this->gas->GetIterations()),0);
 
     // display the current zoom setting
     {
         int num,denom;
         this->gas->GetZoom(num,denom);
         if(denom==1)
-            SetStatusText(wxString::Format(_T("Zoom: %d"),num),1);
+            SetStatusText(wxString::Format(_("Zoom: %d"),num),1);
         else
-            SetStatusText(wxString::Format(_T("Zoom: 1/%d"),denom),1);
+            SetStatusText(wxString::Format(_("Zoom: 1/%d"),denom),1);
     }
 
-    if(this->is_running)
+    if(!this->is_running)
     {
-        // cause some computation to happen
-        SetStatusText(_T("Performing gas calculations..."),2);
-        for(int i=0;i<this->running_step;i++) 
-            this->gas->UpdateGas();
-        // trigger a repaint
-        this->Refresh(false);
+        SetStatusText(_("Stopped - press Enter to start/stop."),2);
     }
     else
-        SetStatusText(_T("Stopped - press Enter to start/stop."),2);
+    {
+        // cause some computation to happen
+        SetStatusText(_("Performing gas calculations..."),2);
+    }
+}
+
+void MyFrame::OnIdle(wxIdleEvent& event)
+{
+    if(this->is_running)
+    {
+        this->gas->UpdateGas();
+        // trigger this event again (after processing other user interactions)
+        event.RequestMore();
+        // paint if needed
+        if(this->gas->GetIterations()%running_step==0)
+            this->Refresh(false);
+    }
 }
 
 void MyFrame::OnStep(wxCommandEvent& /*event*/)
@@ -449,7 +504,7 @@ void MyFrame::OnRunOrStop(wxCommandEvent& /*event*/)
 void MyFrame::OnChangeLineLength(wxCommandEvent& /*event*/)
 {
     double old_line_length = this->gas->GetLineLength(),new_line_length;
-    wxString ret = wxGetTextFromUser(_T("Enter the line length:"),_T("Line lengths"),
+    wxString ret = wxGetTextFromUser(_("Enter the line length:"),_("Line lengths"),
         wxString::Format(_T("%.0f"),old_line_length));
     if(ret.IsEmpty()) return; // user cancelled
     ret.ToDouble(&new_line_length);
@@ -489,16 +544,16 @@ void MyFrame::OnUpdateShowGrid(wxUpdateUIEvent& event)
     event.Check(this->gas->GetShowGrid());
 }
 
-void MyFrame::OnSubtractMeanVelocity(wxCommandEvent& /*event*/)
+void MyFrame::OnChangeToVelocityRepresentationN(wxCommandEvent& event)
 {
-    this->gas->SetSubtractMeanVelocity(!this->gas->GetSubtractMeanVelocity());
+    this->gas->SetVelocityRepresentation(event.GetId()-ID_VELOCITY_REPRESENTATION_0);
     this->Refresh(false);
 }
 
-void MyFrame::OnUpdateSubtractMeanVelocity(wxUpdateUIEvent& event)
+void MyFrame::OnUpdateVelocityRepresentationN(wxUpdateUIEvent& event)
 {
     event.Enable(this->gas->GetShowFlow());
-    event.Check(this->gas->GetSubtractMeanVelocity());
+    event.Check(event.GetId()-ID_VELOCITY_REPRESENTATION_0 == this->gas->GetVelocityRepresentation());
 }
 
 void MyFrame::OnChangeAveragingRadius(wxCommandEvent& /*event*/)
@@ -506,13 +561,13 @@ void MyFrame::OnChangeAveragingRadius(wxCommandEvent& /*event*/)
     long int ar = this->gas->GetAveragingRadius(),new_ar;
     bool redo = false;
     do {
-        wxString ret = wxGetTextFromUser(_T("Enter the averaging radius:"),_T("Averaging radius"),
+        wxString ret = wxGetTextFromUser(_("Enter the averaging radius:"),_("Averaging radius"),
             wxString::Format(_T("%d"),ar));
         if(ret.IsEmpty()) return; // user cancelled
         ret.ToLong(&new_ar);
         redo = new_ar<1;
         if(redo)
-            wxMessageBox(_T("Value must be greater than 0."));
+            wxMessageBox(_("Value must be greater than 0."));
     } while(redo);
     this->gas->SetAveragingRadius(new_ar);
     this->Refresh(false);
@@ -525,48 +580,62 @@ void MyFrame::OnUpdateChangeAveragingRadius(wxUpdateUIEvent& event)
 
 void MyFrame::OnGettingStarted(wxCommandEvent& /*event*/)
 {
-    wxMessageBox(_T("Set the simulation running (press 'Enter' to start and stop). The fluid flows around the obstacle.\n\n\
-After a few thousand timesteps the flow has become unstable, with alternating vortices being shed. \
-Turn on 'subtract mean velocity' and increase the line length to 300 to better see them.\n\n\
-Change the view settings (View menu) to visualize the flow in different ways.\n\n\
-Try the other demos and gases (Actions menu) to see more.\n\n\
-This is an implementation of lattice gas cellular automata. Search the web for \
-more information.\n\n\
-For more advanced changes, explore the source code."),_T("Getting started"),wxOK | wxICON_INFORMATION,
-                 this);
+    wxString text = _("<html><body><table><tr><td>\
+<b>Getting started:</b>\
+<p>Set the simulation running (press 'Enter' to start and stop). The fluid flows around the obstacle \
+and soon forms two vortices, as the fluid is pulled back into the low pressure area. Turn off the gas density \
+display (View menu | Show gas) to better see the flowlines.\
+</p>\
+<p>After a few thousand timesteps the flow usually becomes unstable, with alternating vortices being shed. \
+Select 'Subtract time-averaged point mean velocity' (View menu) and increase the line length to 300 to better see them.\
+</p>\
+<p>Change the view settings (View menu) to visualize the flow in different ways.\
+</p>\
+<p>Try the other demos and gases (Actions menu) to see more.\
+</p>\
+<p>This is an implementation of lattice gas cellular automata. Search the web for \
+more information.\
+</p>\
+<p>For more advanced changes, explore the source code.</p></td></tr></table></body></html>");
+
+    wxBoxSizer *topsizer;
+    wxHtmlWindow *html;
+    wxDialog *dlg = new wxDialog(this, wxID_ANY, wxString(_("Tutorial")));
+
+    topsizer = new wxBoxSizer(wxVERTICAL);
+
+    html = new wxHtmlWindow(dlg, wxID_ANY, wxDefaultPosition, wxSize(380, 160), wxHW_SCROLLBAR_NEVER);
+    html -> SetBorders(0);
+    html -> SetPage(text);
+    html -> SetSize(html -> GetInternalRepresentation() -> GetWidth(),
+                    html -> GetInternalRepresentation() -> GetHeight());
+
+    topsizer -> Add(html, 1, wxALL, 10);
+
+#if wxUSE_STATLINE
+    topsizer -> Add(new wxStaticLine(dlg, wxID_ANY), 0, wxEXPAND | wxLEFT | wxRIGHT, 10);
+#endif // wxUSE_STATLINE
+
+    wxButton *bu1 = new wxButton(dlg, wxID_OK, _("OK"));
+    bu1 -> SetDefault();
+
+    topsizer -> Add(bu1, 0, wxALL | wxALIGN_RIGHT, 15);
+
+    dlg->SetSizer(topsizer);
+    topsizer -> Fit(dlg);
+
+    dlg->Show();
 }
 
-void MyFrame::OnParticlesDemo(wxCommandEvent& /*event*/)
+void MyFrame::OnDemoN(wxCommandEvent& event)
 {
-    this->current_demo = 0;
+    this->current_demo = event.GetId()-ID_DEMO_0;
     this->LoadCurrentDemo();
 }
 
-void MyFrame::OnUpdateParticlesDemo(wxUpdateUIEvent& event)
+void MyFrame::OnUpdateDemoN(wxUpdateUIEvent& event)
 {
-    event.Check(this->current_demo == 0);
-}
-
-void MyFrame::OnObstacleDemo(wxCommandEvent& /*event*/)
-{
-    this->current_demo = 1;
-    this->LoadCurrentDemo();
-}
-
-void MyFrame::OnUpdateObstacleDemo(wxUpdateUIEvent& event)
-{
-    event.Check(this->current_demo == 1);
-}
-
-void MyFrame::OnHoleDemo(wxCommandEvent& /*event*/)
-{
-    this->current_demo = 2;
-    this->LoadCurrentDemo();
-}
-
-void MyFrame::OnUpdateHoleDemo(wxUpdateUIEvent& event)
-{
-    event.Check(this->current_demo == 2);
+    event.Check(this->current_demo == event.GetId()-ID_DEMO_0);
 }
 
 void MyFrame::OnZoomIn(wxCommandEvent& /*event*/)
@@ -574,7 +643,7 @@ void MyFrame::OnZoomIn(wxCommandEvent& /*event*/)
     if(this->gas->ZoomIn())
         this->Refresh(true);
     else
-        wxMessageBox(_T("Resulting image too large, can't zoom in any further."));
+        wxMessageBox(_("Resulting image too large, can't zoom in any further."));
 }
 
 void MyFrame::OnZoomOut(wxCommandEvent& /*event*/)
@@ -600,7 +669,7 @@ void MyFrame::OnChangeToGasTypeN(wxCommandEvent& event)
     BaseLatticeGas_drawable* new_gas = LatticeGasFactory::CreateGas(new_ID);
     if(new_gas==NULL) 
     {
-        wxMessageBox(_T("Gas not yet supported, sorry!"));
+        wxMessageBox(_("Gas not yet supported, sorry!"));
         return;
     }
     delete this->gas;
@@ -617,17 +686,17 @@ void MyFrame::OnUpdateChangeToGasTypeN(wxUpdateUIEvent& event)
 
 void MyFrame::OnGetReport(wxCommandEvent& event)
 {
+    wxString oss;
+    oss << _("Gas type: ") << LatticeGasFactory::GetGasDescription(this->current_gas_type);
+    oss << _T("\n");
+    oss << _("Size: ") << this->gas->GetX() << _T("x") << this->gas->GetY() << _T("\n");
+    oss << _("Number of gas particles: ") << this->gas->GetNumGasParticles() << _T("\n");
+    oss << _("Density: ") << 100.0f*this->gas->GetNumGasParticles()/this->gas->GetMaxNumGasParticles() << _T("%\n");
     RealPoint v = this->gas->GetAverageInputFlowVelocityPerParticle();
-    ostringstream oss;
-    oss << "Gas type: " << LatticeGasFactory::GetGasDescription(this->current_gas_type) << "\n";
-    oss << "Size: " << this->gas->GetX() << "x" << this->gas->GetY() << "\n";
-    oss << "Number of gas particles: " << this->gas->GetNumGasParticles() << "\n";
-    oss.precision(1);
-    oss.setf(ios_base::fixed,ios_base::floatfield);
-    oss << "Density: " << 100.0f*this->gas->GetNumGasParticles()/this->gas->GetMaxNumGasParticles() << "%\n";
-    oss.precision(3);
-    oss << "Average input flow per particle: " << v.x << "," << v.y << "\n";
-    wxMessageBox(wxString(oss.str().c_str(),wxConvUTF8));
+    oss << _("Average input flow per particle: ") << v.x << _T(",") << v.y << _T("\n");
+    RealPoint av = this->gas->GetAverageVelocityPerParticle();
+    oss << _("Average velocity: ") << av.x << _T(",") << av.y << _T("\n");
+    wxMessageBox(oss);
 }
 
 void MyFrame::OnShowGas(wxCommandEvent& event)
@@ -651,4 +720,30 @@ void MyFrame::OnUpdateShowGasColours(wxUpdateUIEvent& event)
 {
     event.Enable(this->gas->GetShowGas());
     event.Check(this->gas->GetShowGasColours());
+}
+
+void MyFrame::OnChangeRedrawStep(wxCommandEvent &event)
+{
+    long int rs = this->running_step,new_rs;
+    bool redo = false;
+    do {
+        wxString ret = wxGetTextFromUser(_(
+"While running, the gas is repainted every N steps.\n\n\
+Lower values update more frequently but slow down the overall speed.\n\n\
+Enter the new redraw step:"),_("Redraw step"),
+            wxString::Format(_T("%d"),rs));
+        if(ret.IsEmpty()) return; // user cancelled
+        ret.ToLong(&new_rs);
+        redo = new_rs<1;
+        if(redo)
+            wxMessageBox(_("Value must be greater than 0."));
+    } while(redo);
+    this->running_step = new_rs;
+    this->Refresh(false);
+}
+
+void MyFrame::OnFitToWindow(wxCommandEvent& event)
+{
+    this->gas->RequestBestFitZoomFactor(this->GetClientSize().GetWidth(),this->GetClientSize().GetHeight());
+    this->Refresh(false);
 }

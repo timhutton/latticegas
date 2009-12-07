@@ -19,13 +19,26 @@
 #ifndef __BASELATTICEGAS_H__
 #define __BASELATTICEGAS_H__
 
+// local:
+#include "wxWidgetsPreamble.h"
+
 // STL:
 #include <vector>
 #include <string>
 using std::vector;
 using std::string;
 
-class RealPoint;
+// (a simple replacement for wxRealPoint, to avoid dependencies)
+class RealPoint {
+    public:
+        double x,y;
+        RealPoint(double x=0.0,double y=0.0) : x(x), y(y) {}
+        RealPoint(const RealPoint& r) : x(r.x), y(r.y) {}
+        RealPoint operator+(const RealPoint& b) { return RealPoint(x+b.x,y+b.y); }
+        RealPoint& operator+=(const RealPoint& b) { x+=b.x; y+=b.y; return *this; }
+        RealPoint operator*(const double m) { return RealPoint(x*m,y*m); }
+        RealPoint& operator*=(const double m) { x*=m; y*=m; return *this; }
+};
 
 // Abstract base class for all 2D lattice gas implementations. 
 class BaseLatticeGas 
@@ -34,6 +47,9 @@ class BaseLatticeGas
         
         // update the gas by applying one timestep
 		virtual void UpdateGas()=0;
+
+        // what is the average particle velocity?
+        RealPoint GetAverageVelocityPerParticle() const;
 
         // for models that force the flow at one end (typically with a sink at 
         // the other end), what is the average input flow speed of the particles?
@@ -44,14 +60,9 @@ class BaseLatticeGas
         // (we use this to size the grid appropriately)
         virtual float GetAverageInputNumParticlesPerCell() const =0;
 
-        // a demo example: flow past an obstacle
-        virtual void ResetGridForObstacleExample();
-
-        // a demo example: flow through a hole
-        virtual void ResetGridForHoleExample();
-
-        // a demo example: ~10 bouncing particles
-        virtual void ResetGridForParticlesExample();
+        virtual void ResetGridForDemo(int i);
+        static int GetNumDemos();
+        static wxString GetDemoDescription(int i);
 
     public: // functions
 
@@ -60,8 +71,10 @@ class BaseLatticeGas
         int GetIterations() const;
         int GetAveragingRadius() const;
         void SetAveragingRadius(int ar);
-        bool GetSubtractMeanVelocity() const;
-        void SetSubtractMeanVelocity(bool sub);
+        int GetVelocityRepresentation() const;
+        void SetVelocityRepresentation(int i);
+        static wxString GetVelocityRepresentationAsString(int i);
+        static int GetNumVelocityRepresentations();
         int GetX() const;
         int GetY() const;
 
@@ -74,6 +87,9 @@ class BaseLatticeGas
     protected: // typedefs
 
         typedef unsigned char state;
+
+        enum TVelocityRepresentation { Velocity_Raw, Velocity_SubtractGlobalMean, Velocity_SubtractPointMean, Velocity_LAST };
+        enum TDemo { Demo_Particles, Demo_Obstacle, Demo_Hole, Demo_KelvinHelmholtz, Demo_LAST };
 
     protected: // overrideables
     
@@ -93,6 +109,7 @@ class BaseLatticeGas
         virtual string GetReport(state s) const =0;
 
         virtual void InsertRandomFlow(int x,int y)=0;
+        virtual void InsertRandomBackwardFlow(int x,int y)=0;
         virtual void InsertRandomParticle(int x,int y)=0;
 
     protected: // functions
@@ -118,11 +135,13 @@ class BaseLatticeGas
 
         int iterations;
 
-        vector<state> flow_samples; // we sample from this to bias the flow
+        vector<state> forward_flow_samples; // we sample from this to bias the flow
+        vector<state> backward_flow_samples; // (sometimes we use this too)
         int flow_sample_separation; // we compute the flow at sparse positions (X and Y should divide by this)
         vector<vector<RealPoint> > velocity; // instantaneous velocity measurement
         vector<vector<RealPoint> > averaged_velocity; // we keep a running average
         bool have_taken_first_velocity_average;
+        RealPoint global_mean_velocity;
 
         bool force_flow; // are we forcing the flow by overwriting the leftmost column?
         
@@ -131,21 +150,9 @@ class BaseLatticeGas
 
         // velocity computation flags
         int averaging_radius; // (usually equal to flow_sample_separation)
-        bool subtract_mean_velocity;
+        TVelocityRepresentation velocity_representation;
 
         //wxPoint container_momentum; // we would like to monitor the total overall momentum, for bug checking
-};
-
-// (a simple replacement for wxRealPoint, to avoid dependencies)
-class RealPoint {
-    public:
-        double x,y;
-        RealPoint(double x=0.0,double y=0.0) : x(x), y(y) {}
-        RealPoint(const RealPoint& r) : x(r.x), y(r.y) {}
-        RealPoint operator+(const RealPoint& b) { return RealPoint(x+b.x,y+b.y); }
-        RealPoint& operator+=(const RealPoint& b) { x+=b.x; y+=b.y; return *this; }
-        RealPoint operator*(const double m) { return RealPoint(x*m,y*m); }
-        RealPoint& operator*=(const double m) { x*=m; y*=m; return *this; }
 };
 
 #endif

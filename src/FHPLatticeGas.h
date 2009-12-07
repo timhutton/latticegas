@@ -33,8 +33,6 @@ class FHPLatticeGas : public HexGridLatticeGas
 
     protected: // functions
 
-        void ResetGridForParticlesExample(); // override
-
         int GetNumGasParticlesAt(int x,int y) const; // override
         int GetMaxNumGasParticlesAt(int x,int y) const; // override
 
@@ -43,6 +41,7 @@ class FHPLatticeGas : public HexGridLatticeGas
         string GetReport(state s) const; // override
 
         void InsertRandomFlow(int x,int y); // override
+        void InsertRandomBackwardFlow(int x,int y); // override
         void InsertRandomParticle(int x,int y); // override
 
         void InitializeCollisionMap();
@@ -57,6 +56,9 @@ class FHPLatticeGas : public HexGridLatticeGas
         // an internal check that a gas is collision-saturated
         void VerifyIsCollisionSaturated();
 
+        void ResizeGrid(int x_size,int y_size); // override
+
+
     protected: // data
 
         const FHP_type fhp_type;
@@ -65,5 +67,8 @@ class FHPLatticeGas : public HexGridLatticeGas
 
         vector< vector<state> > collision_classes;
         state collision_map[129];
+
+        // an attempt to speed things up: can we store pointers to the 6 neighbors of each cell?
+        //vector<vector<vector<state*> > > nbors_lut[2]; // [buffer][dir][x][y]
 };
 

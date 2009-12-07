@@ -18,6 +18,10 @@
 
 #include "BaseLatticeGas_drawable.h"
 
+#include <stdexcept>
+#include <exception>
+using namespace std;
+
 BaseLatticeGas_drawable::BaseLatticeGas_drawable()
 {
     grid_lines_colour = wxColour(100,100,100);
@@ -61,16 +65,21 @@ void BaseLatticeGas_drawable::Draw(wxPaintDC& dc)
 void BaseLatticeGas_drawable::ResizeGrid(int x_size,int y_size)
 {
     BaseLatticeGas::ResizeGrid(x_size,y_size);
+    RequestBestFitZoomFactor(500,500);
+}
 
+void BaseLatticeGas_drawable::RequestBestFitZoomFactor(int x,int y)
+{
     // scale down the visible grid until we it is sensible to show
     {
-        // try: 10,9,...,2,1,1/2,1/3,1/4,...
-        int zn=10,zd=1;
+        // try: 256,128,...,2,1,1/2,1/4,1/8,...
+        int zn=1<<8,zd=1;
         int ms = max(X,Y);
-        while((ms*zn)/zd>500)
+        int mt = max(x,y);
+        while((ms*zn)/zd>mt)
         {
-            if(zn>1) zn--;
-            else zd++;
+            if(zn>1) zn/=2;
+            else zd*=2;
         }
         RequestZoomFactor(zn,zd);
     }
@@ -174,38 +183,47 @@ void BaseLatticeGas_drawable::SetShowGrid(bool show)
     this->need_redraw_images = true;
 }
 
-void BaseLatticeGas_drawable::ResetGridForParticlesExample()
+void BaseLatticeGas_drawable::ResetGridForDemo(int i)
 {
-    this->BaseLatticeGas::ResetGridForParticlesExample();
+    this->BaseLatticeGas::ResetGridForDemo(i);
 
-    this->line_length = 1;
-    this->show_flow_colours = true;
-	this->show_grid = true;
-    this->show_flow = true;
-    this->show_gas = true;
-    this->show_gas_colours = true;
-}
-
-void BaseLatticeGas_drawable::ResetGridForObstacleExample()
-{
-    this->BaseLatticeGas::ResetGridForObstacleExample();
-    this->line_length = 100;
-    this->show_flow_colours = true;
-    this->show_grid = true;
-    this->show_flow = true;
-    this->show_gas = true;
-    this->show_gas_colours = false;
-}
-
-void BaseLatticeGas_drawable::ResetGridForHoleExample()
-{
-    this->BaseLatticeGas::ResetGridForHoleExample();
-    this->line_length = 100;
-    this->show_flow_colours = true;
-    this->show_grid = true;
-    this->show_flow = true;
-    this->show_gas = true;
-    this->show_gas_colours = false;
+    switch(i)
+    {
+        case Demo_Particles:
+            this->line_length = 1;
+            this->show_flow_colours = true;
+	        this->show_grid = true;
+            this->show_flow = true;
+            this->show_gas = true;
+            this->show_gas_colours = true;
+            break;
+        case Demo_Obstacle:
+            this->line_length = 100;
+            this->show_flow_colours = true;
+            this->show_grid = true;
+            this->show_flow = true;
+            this->show_gas = true;
+            this->show_gas_colours = false;
+            break;
+        case Demo_Hole:
+            this->line_length = 100;
+            this->show_flow_colours = true;
+            this->show_grid = true;
+            this->show_flow = true;
+            this->show_gas = true;
+            this->show_gas_colours = false;
+            break;
+        case Demo_KelvinHelmholtz:
+            this->line_length = 100;
+            this->show_flow_colours = true;
+            this->show_grid = true;
+            this->show_flow = true;
+            this->show_gas = true;
+            this->show_gas_colours = false;
+            break;
+        default:
+            throw runtime_error("Demo range error!");
+    }
 }
 
 

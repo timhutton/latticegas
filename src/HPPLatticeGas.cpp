@@ -43,16 +43,20 @@ HPPLatticeGas::HPPLatticeGas(HPP_type type) : hpp_type(type)
             {
                 memcpy(DIR,DIAG_DIRS,sizeof(DIR));
                 const int NE=1,SE=2,SW=4,NW=8;
-                state samples[] = { NE, SE, NE+SE, NE+SE+SW, NE+SE+NW }; // density: 50%, av. horiz. speed = 0.6
-                this->flow_samples.assign(samples,samples+sizeof(samples)/sizeof(state));
+                state forward_samples[] = { NE, SE, NE+SE, NE+SE+SW, NE+SE+NW }; // density: 50%, av. horiz. speed = 0.6
+                this->forward_flow_samples.assign(forward_samples,forward_samples+sizeof(forward_samples)/sizeof(state));
+                state backward_samples[] = { NW, SW, NW+SW, NW+SW+SE, NW+SW+NE }; // density: 50%, av. horiz. speed = 0.6
+                this->backward_flow_samples.assign(backward_samples,backward_samples+sizeof(backward_samples)/sizeof(state));
             }
             break;
         case HorizontalVertical:
             {
                 memcpy(DIR,HV_DIRS,sizeof(DIR));
                 const int N=1,E=2,S=4,W=8;
-                state samples[] = { E, N+E+S, N+E, E+S }; // density: 50%, av. horiz. speed = 0.5
-                this->flow_samples.assign(samples,samples+sizeof(samples)/sizeof(state));
+                state forward_samples[] = { E, N+E+S, N+E, E+S }; // density: 50%, av. horiz. speed = 0.5
+                this->forward_flow_samples.assign(forward_samples,forward_samples+sizeof(forward_samples)/sizeof(state));
+                state backward_samples[] = { W, N+W+S, N+W, W+S }; // density: 50%, av. horiz. speed = 0.5
+                this->backward_flow_samples.assign(backward_samples,backward_samples+sizeof(backward_samples)/sizeof(state));
             }
             break;
     }
@@ -76,7 +80,7 @@ void HPPLatticeGas::UpdateGas()
                 // an infinite tube filled with moving gas
                 state s = this->grid[old_buffer][0][y];
                 if(s!=BOUNDARY)
-                    s = this->flow_samples[rand()%this->flow_samples.size()];
+                    s = this->forward_flow_samples[rand()%this->forward_flow_samples.size()];
                 this->grid[current_buffer][0][y]=s;
             }
             else
@@ -131,9 +135,9 @@ RealPoint HPPLatticeGas::GetAverageInputFlowVelocityPerParticle() const
 {
     RealPoint flow(0,0);
     int n_particles_counted = 0;
-    for(int i=0;i<(int)this->flow_samples.size();i++)
+    for(int i=0;i<(int)this->forward_flow_samples.size();i++)
     {
-        state s = this->flow_samples[i];
+        state s = this->forward_flow_samples[i];
         for(int dir=0;dir<N_DIRS;dir++)
         {
             if(s&(1<<dir))
@@ -152,9 +156,9 @@ RealPoint HPPLatticeGas::GetAverageInputFlowVelocityPerParticle() const
 float HPPLatticeGas::GetAverageInputNumParticlesPerCell() const
 {
     int n_particles_counted = 0;
-    for(int i=0;i<(int)this->flow_samples.size();i++)
+    for(int i=0;i<(int)this->forward_flow_samples.size();i++)
     {
-        state s = this->flow_samples[i];
+        state s = this->forward_flow_samples[i];
         for(int dir=0;dir<N_DIRS;dir++)
         {
             if(s&(1<<dir))
@@ -166,7 +170,7 @@ float HPPLatticeGas::GetAverageInputNumParticlesPerCell() const
             }
         }
     }
-    return n_particles_counted / (float)this->flow_samples.size();
+    return n_particles_counted / (float)this->forward_flow_samples.size();
 }
 
 int HPPLatticeGas::GetNumGasParticlesAt(int x,int y) const
@@ -214,7 +218,12 @@ void HPPLatticeGas::InsertRandomParticle(int x,int y)
 
 void HPPLatticeGas::InsertRandomFlow(int x, int y)
 {
-    this->grid[current_buffer][x][y] = this->flow_samples[rand()%this->flow_samples.size()];
+    this->grid[current_buffer][x][y] = this->forward_flow_samples[rand()%this->forward_flow_samples.size()];
+}
+
+void HPPLatticeGas::InsertRandomBackwardFlow(int x, int y)
+{
+    this->grid[current_buffer][x][y] = this->backward_flow_samples[rand()%this->backward_flow_samples.size()];
 }
 
 string HPPLatticeGas::GetReport(state s) const

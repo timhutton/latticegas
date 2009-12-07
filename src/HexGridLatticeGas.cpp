@@ -107,7 +107,13 @@ void HexGridLatticeGas::RedrawImagesIfNeeded()
             {
                 int sx=x/this->flow_sample_separation,sy=y/this->flow_sample_separation;
                 RealPoint v(velocity[sx][sy]);
-                if(this->subtract_mean_velocity)
+                if(this->velocity_representation == Velocity_SubtractGlobalMean)
+                {
+                    // we subtract the averaged velocity at this point, to better highlight the dynamic changes
+                    v.x -= global_mean_velocity.x;
+                    v.y -= global_mean_velocity.y;
+                }
+                else if(this->velocity_representation == Velocity_SubtractPointMean)
                 {
                     // we subtract the averaged velocity at this point, to better highlight the dynamic changes
                     v.x -= averaged_velocity[sx][sy].x;

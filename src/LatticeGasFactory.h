@@ -16,6 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// local:
+#include "wxWidgetsPreamble.h"
 #include "BaseLatticeGas_drawable.h"
 
 class LatticeGasFactory
@@ -24,7 +26,7 @@ class LatticeGasFactory
 
 		static BaseLatticeGas_drawable* CreateGas(int type);
 
-        static const char* GetGasDescription(int type);
+        static wxString GetGasDescription(int type);
 
         static int GetNumGasTypesSupported();
 

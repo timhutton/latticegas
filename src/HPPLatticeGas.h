@@ -45,6 +45,7 @@ class HPPLatticeGas : public SquareGridLatticeGas
         string GetReport(state s) const; // override
 
         void InsertRandomFlow(int x,int y); // override
+        void InsertRandomBackwardFlow(int x,int y); // override
         void InsertRandomParticle(int x,int y); // override
 
     protected: // data
