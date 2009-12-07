@@ -56,11 +56,15 @@ public:
 
     void OnPaint(wxPaintEvent& event);
     void OnIdle(wxIdleEvent& event);
+    void OnMouseDown(wxMouseEvent& event);
+    void OnMouseMove(wxMouseEvent& event);
+    void OnMouseUp(wxMouseEvent& event);
     // file menu
     void OnQuit(wxCommandEvent& event);
     // view menu
     void OnZoomIn(wxCommandEvent& event);
     void OnZoomOut(wxCommandEvent& event);
+    void OnPanLeft(wxCommandEvent& event);
     void OnFitToWindow(wxCommandEvent& event);
     void OnChangeRedrawStep(wxCommandEvent& event);
     void OnShowGas(wxCommandEvent& event);
@@ -104,6 +108,9 @@ private:
 
     int current_demo;
     void LoadCurrentDemo();
+    
+    wxPoint offset,drag_offset;
+    bool is_dragging;
 };
 
 // ----------------------------------------------------------------------------
@@ -169,6 +176,9 @@ enum
 BEGIN_EVENT_TABLE(MyFrame, wxFrame)
     EVT_PAINT(MyFrame::OnPaint)
     EVT_IDLE(MyFrame::OnIdle)
+    EVT_LEFT_DOWN(MyFrame::OnMouseDown)
+    EVT_MOTION(MyFrame::OnMouseMove)
+    EVT_LEFT_UP(MyFrame::OnMouseUp)
     // file menu:
     EVT_MENU(Minimal_Quit,  MyFrame::OnQuit)
     // view menu:
@@ -224,7 +234,7 @@ bool MyApp::OnInit()
     // few common command-line options but it could be do more in the future
     if ( !wxApp::OnInit() )
         return false;
-
+        
     // create the main application window
     MyFrame *frame = new MyFrame(_("Lattice Gas Explorer"));
 
@@ -352,16 +362,19 @@ MyFrame::MyFrame(const wxString& title)
     wxInitAllImageHandlers();
     
     this->SetSize(wxSize(600,600));
-
+    
     this->current_gas_type = 6;
     this->gas = LatticeGasFactory::CreateGas(this->current_gas_type);
     this->current_demo = 1;
     this->LoadCurrentDemo();
+    
+    this->is_dragging = false;
 }
 
 void MyFrame::LoadCurrentDemo()
 {
     this->gas->ResetGridForDemo(this->current_demo);
+    this->offset = wxPoint(0,0);
     this->gas->RequestBestFitZoomFactor(this->GetClientSize().GetWidth(),this->GetClientSize().GetHeight());
     if(this->current_demo==0) this->running_step = 1;
     else this->running_step = 10;
@@ -445,7 +458,7 @@ void MyFrame::OnPaint(wxPaintEvent& /*event*/)
         // BUG: this message doesn't show up on linux, only on Windows
 
         wxPaintDC dc(this);
-        this->gas->Draw(dc);
+        this->gas->Draw(dc,this->offset.x,this->offset.y);
     }
 
     SetStatusText(wxString::Format(_("%d iterations"),this->gas->GetIterations()),0);
@@ -582,11 +595,11 @@ void MyFrame::OnGettingStarted(wxCommandEvent& /*event*/)
 {
     wxString text = _("<html><body><table><tr><td>\
 <b>Getting started:</b>\
-<p>Set the simulation running (press 'Enter' to start and stop). The fluid flows around the obstacle \
+<p><b>1.</b> Set the simulation running (press 'Enter' to start and stop). The fluid flows around the obstacle \
 and soon forms two vortices, as the fluid is pulled back into the low pressure area. Turn off the gas density \
 display (View menu | Show gas) to better see the flowlines.\
 </p>\
-<p>After a few thousand timesteps the flow usually becomes unstable, with alternating vortices being shed. \
+<p><b>2.</b> After a few thousand timesteps the flow usually becomes unstable, with alternating vortices being shed. \
 Select 'Subtract time-averaged point mean velocity' (View menu) and increase the line length to 300 to better see them.\
 </p>\
 <p>Change the view settings (View menu) to visualize the flow in different ways.\
@@ -744,6 +757,33 @@ Enter the new redraw step:"),_("Redraw step"),
 
 void MyFrame::OnFitToWindow(wxCommandEvent& event)
 {
+    this->offset = wxPoint(0,0);
     this->gas->RequestBestFitZoomFactor(this->GetClientSize().GetWidth(),this->GetClientSize().GetHeight());
     this->Refresh(false);
 }
+
+void MyFrame::OnMouseDown(wxMouseEvent& event)
+{
+    if(!this->is_dragging)
+    {
+        this->is_dragging = true;
+        this->drag_offset = event.GetPosition();
+    }
+}
+
+void MyFrame::OnMouseMove(wxMouseEvent& event)
+{
+    if(this->is_dragging)
+    {
+        this->offset += event.GetPosition() - this->drag_offset;
+        this->drag_offset = event.GetPosition();
+        this->Refresh(false);
+    }
+}
+
+void MyFrame::OnMouseUp(wxMouseEvent& event)
+{
+    if(this->is_dragging)
+        this->is_dragging = false;
+}
+

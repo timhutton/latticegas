@@ -55,10 +55,10 @@ bool BaseLatticeGas_drawable::RequestZoomFactor(int num,int denom)
     return true;
 }
 
-void BaseLatticeGas_drawable::Draw(wxPaintDC& dc)
+void BaseLatticeGas_drawable::Draw(wxPaintDC& dc,int x_offset,int y_offset)
 {
     this->RedrawImagesIfNeeded();
-    dc.Blit(0,0,X*this->zoom_factor_num / this->zoom_factor_denom,
+    dc.Blit(x_offset,y_offset,X*this->zoom_factor_num / this->zoom_factor_denom,
         Y*this->zoom_factor_num / this->zoom_factor_denom,&this->drawing_buffer,0,0);
 }
 
@@ -74,9 +74,7 @@ void BaseLatticeGas_drawable::RequestBestFitZoomFactor(int x,int y)
     {
         // try: 256,128,...,2,1,1/2,1/4,1/8,...
         int zn=1<<8,zd=1;
-        int ms = max(X,Y);
-        int mt = max(x,y);
-        while((ms*zn)/zd>mt)
+        while((X*zn)/zd>x || (Y*zn)/zd>y)
         {
             if(zn>1) zn/=2;
             else zd*=2;
