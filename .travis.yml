@@ -1,0 +1,16 @@
+addons:
+  apt:
+    packages:
+    - libwxgtk2.8-dev
+    
+language: cpp
+
+compiler:  
+    - gcc
+
+before_script:  
+    - mkdir build
+    - cd build
+    - cmake ..
+
+script: make 
