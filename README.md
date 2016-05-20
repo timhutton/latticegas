@@ -1,3 +1,7 @@
+[![Build Status](https://travis-ci.org/timhutton/latticegas.svg?branch=master)](https://travis-ci.org/timhutton/latticegas)
+
+# Lattice Gas Explorer #
+
 Explore lattice gases, from the basics of implementation to the analysis of the flow patterns.
 
 ![http://lh5.ggpht.com/_L3XQL9bgmnM/SR9UsJfZuyI/AAAAAAAABvo/AfxEGYkSQdA/s400/eddies.jpg](http://lh5.ggpht.com/_L3XQL9bgmnM/SR9UsJfZuyI/AAAAAAAABvo/AfxEGYkSQdA/s400/eddies.jpg)
