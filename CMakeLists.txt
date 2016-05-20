@@ -22,28 +22,11 @@ cmake_minimum_required(VERSION 2.6)
 
 #-----------------
 
-# if you have multiple CPUs you can use OpenMP to get the program to run faster
-OPTION(USE_OMP "Use OpenMP" ON)
-
-IF(USE_OMP)
-    IF(UNIX)
-        IF(USE_ICC)
-            #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -openmp -axT")
-            #SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -openmp -axT")
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -openmp")
-            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -openmp")
-        ELSE(USE_ICC)
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
-            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
-            #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpmath=sse")
-            #SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mfpmath=sse")
-        ENDIF(USE_ICC)
-    ELSE(UNIX)
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /openmp")
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /openmp")
-    ENDIF(UNIX)
-    ADD_DEFINITIONS(-D USE_OMP)
-ENDIF(USE_OMP)
+find_package(OpenMP)
+if (OPENMP_FOUND)
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
 
 #-----------------------------------------------------------------------------
 
