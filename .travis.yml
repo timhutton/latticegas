@@ -1,34 +1,16 @@
-sudo: required
-dist: precise
-
-matrix:
-  include:
-    - compiler: clang
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.8
-          packages:
-            - libwxgtk2.8-dev
-            - clang-3.8
-      env:
-        - CPP_COMPILER=clang++-3.8
-        - C_COMPILER=clang-3.8
-    - compiler: gcc
-      addons:
-        apt:
-          packages:
-            - libwxgtk2.8-dev
-      env:
-        - CPP_COMPILER=g++
-        - C_COMPILER=gcc
-
+addons:
+  apt:
+    packages:
+    - libwxgtk2.8-dev
+    
 language: cpp
+
+compiler:  
+    - gcc
 
 before_script:  
     - mkdir build
     - cd build
-    - cmake -DCMAKE_CXX_COMPILER=$CPP_COMPILER -DCMAKE_C_COMPILER=$C_COMPILER ..
+    - cmake ..
 
 script: make 
