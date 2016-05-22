@@ -12,19 +12,23 @@ matrix:
           packages:
             - libwxgtk2.8-dev
             - clang-3.8
-      env: COMPILER=clang++-3.8
+      env:
+        - CPP_COMPILER=clang++-3.8
+        - C_COMPILER=clang-3.8
     - compiler: gcc
       addons:
         apt:
           packages:
             - libwxgtk2.8-dev
-      env: COMPILER=g++
+      env:
+        - CPP_COMPILER=g++
+        - C_COMPILER=gcc
 
 language: cpp
 
 before_script:  
     - mkdir build
     - cd build
-    - cmake -DCMAKE_CXX_COMPILER=$COMPILER ..
+    - cmake -DCMAKE_CXX_COMPILER=$CPP_COMPILER -DCMAKE_C_COMPILER=$C_COMPILER ..
 
 script: make 
