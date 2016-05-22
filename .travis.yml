@@ -1,16 +1,25 @@
 sudo: required
 dist: trusty
 
-addons:
-  apt:
-    packages:
-    - libwxgtk2.8-dev
+matrix:
+  include:
+    - compiler: clang
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-precise-3.8
+          packages:
+            - libwxgtk2.8-dev
+            - clang-3.8
+      env: COMPILER=clang++-3.8
+    - compiler: gcc
+      addons:
+        apt:
+          packages:
+            - libwxgtk2.8-dev
+      env: COMPILER=g++
     
 language: cpp
-
-compiler:  
-    - gcc
-    - clang
 
 before_script:  
     - mkdir build
