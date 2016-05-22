@@ -1,5 +1,5 @@
 sudo: required
-dist: trusty
+dist: precise
 
 matrix:
   include:
@@ -8,7 +8,7 @@ matrix:
         apt:
           sources:
             - ubuntu-toolchain-r-test
-            - llvm-toolchain-trusty-3.7
+            - llvm-toolchain-precise-3.7
           packages:
             - libwxgtk2.8-dev
             - clang-3.7
