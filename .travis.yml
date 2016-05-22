@@ -10,6 +10,7 @@ language: cpp
 
 compiler:  
     - gcc
+    - clang
 
 before_script:  
     - mkdir build
