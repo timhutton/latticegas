@@ -12,13 +12,17 @@ matrix:
           packages:
             - libwxgtk2.8-dev
             - clang-3.8
-      env: COMPILER=clang++-3.8
+      env:
+        - COMPILER=clang++-3.8
+        - CXX=clang++-3.8
     - compiler: gcc
       addons:
         apt:
           packages:
             - libwxgtk2.8-dev
-      env: COMPILER=g++
+      env:
+        - COMPILER=g++
+        - CXX=g++
     
 language: cpp
 
