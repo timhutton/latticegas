@@ -7,7 +7,8 @@ matrix:
       addons:
         apt:
           sources:
-            - llvm-toolchain-precise-3.7
+            - ubuntu-toolchain-r-test
+            - llvm-toolchain-trusty-3.7
           packages:
             - libwxgtk2.8-dev
             - clang-3.7
