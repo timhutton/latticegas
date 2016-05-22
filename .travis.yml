@@ -8,11 +8,11 @@ matrix:
         apt:
           sources:
             - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.7
+            - llvm-toolchain-precise-3.8
           packages:
             - libwxgtk2.8-dev
-            - clang-3.7
-      env: COMPILER=clang++-3.7
+            - clang-3.8
+      env: COMPILER=clang++-3.8
     - compiler: gcc
       addons:
         apt:
