@@ -9,8 +9,6 @@ compiler:
     - gcc
 
 before_script:  
-    - cd ~
-    - cd $TRAVIS_BUILD_DIR
     - mkdir build
     - cd build
     - cmake ..
