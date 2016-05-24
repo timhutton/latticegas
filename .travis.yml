@@ -9,7 +9,8 @@ compiler:
     - gcc
 
 before_script:  
-    - pwd
+    - cd ~
+    - cd timhutton/latticegas
     - mkdir build
     - cd build
     - cmake ..
