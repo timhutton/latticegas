@@ -10,7 +10,7 @@ compiler:
 
 before_script:  
     - cd ~
-    - cd timhutton/latticegas
+    - cd $TRAVIS_BUILD_DIR
     - mkdir build
     - cd build
     - cmake ..
