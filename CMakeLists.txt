@@ -19,6 +19,9 @@
 project(LatticeGasExplorer)
 
 cmake_minimum_required(VERSION 2.6)
+if(POLICY CMP0043)
+  cmake_policy(SET CMP0043 NEW)
+endif()
 
 #-----------------
 
