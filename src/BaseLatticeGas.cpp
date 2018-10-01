@@ -24,9 +24,10 @@
 #include <math.h>
 
 // STL:
+#include <algorithm>
+#include <exception>
 #include <sstream>
 #include <stdexcept>
-#include <exception>
 using namespace std;
 
 void BaseLatticeGas::ResizeGrid(int x_size,int y_size)
